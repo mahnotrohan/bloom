@@ -25,6 +25,11 @@ type Brewer =
 type Grind = "Fine" | "Medium-Fine" | "Medium" | "Medium-Coarse" | "Coarse";
 type Agitation = "Gentle" | "Moderate" | "Vigorous";
 type Roast = "Light" | "Medium-Light" | "Medium" | "Medium-Dark" | "Dark";
+type StoredRecipe = Omit<Recipe, "roast"> & {
+  roast?: Roast | Roast[];
+  yield?: number;
+  saveCount?: number;
+};
 
 type TimelineEvent = {
   id: string;
@@ -48,7 +53,7 @@ type Recipe = {
   grinder: string;
   clicks: string;
   temp: number;
-  roast: Roast;
+  roast: Roast[];
   bean: string;
   agitation: Agitation;
   pours: number;
@@ -76,21 +81,7 @@ const brewers: Brewer[] = [
   "Other - Immersion",
 ];
 
-const grinders = [
-  "Comandante C40",
-  "1Zpresso K-Ultra",
-  "1Zpresso JX-Pro",
-  "Timemore C3",
-  "Baratza Encore",
-  "Baratza Virtuoso+",
-  "Fellow Ode Gen 2",
-  "Niche Zero",
-  "DF64",
-  "Other - Conical Manual",
-  "Other - Conical Electric",
-  "Other - Flat Manual",
-  "Other - Flat Electric",
-];
+const roastLevels: Roast[] = ["Light", "Medium-Light", "Medium", "Medium-Dark", "Dark"];
 
 const eventTypes = [
   "Bloom",
@@ -121,7 +112,7 @@ const seedRecipes: Recipe[] = [
     grinder: "Comandante C40",
     clicks: "25 clicks",
     temp: 92,
-    roast: "Medium-Light",
+    roast: ["Medium-Light"],
     bean: "Washed Ethiopia, citrus and tea",
     agitation: "Moderate",
     pours: 4,
@@ -135,7 +126,7 @@ const seedRecipes: Recipe[] = [
       event("Pour", 90, 20, "180", false, false, "Keep slurry low."),
       event("Pour", 135, 25, "240", false, false, "Softer outer spiral."),
       event("Pour", 190, 30, "300", false, false, "Finish through center."),
-      event("Drawdown", 220, 55, "", false, true, "Target finish 4:35."),
+      event("Drawdown", 220, 275, "", false, true, "Target finish 4:35."),
     ],
   },
   {
@@ -149,7 +140,7 @@ const seedRecipes: Recipe[] = [
     grinder: "1Zpresso K-Ultra",
     clicks: "5.5",
     temp: 88,
-    roast: "Light",
+    roast: ["Light"],
     bean: "Kenya peaberry, blackcurrant",
     agitation: "Gentle",
     pours: 1,
@@ -176,7 +167,7 @@ const seedRecipes: Recipe[] = [
     grinder: "Timemore C3",
     clicks: "9",
     temp: 94,
-    roast: "Medium-Dark",
+    roast: ["Medium-Dark"],
     bean: "Chicory-free filter roast",
     agitation: "Gentle",
     pours: 2,
@@ -188,7 +179,7 @@ const seedRecipes: Recipe[] = [
       event("Pour", 0, 25, "60", true, false, "First saturation pour."),
       event("Wait", 25, 60, "", false, true, "Let the bed settle."),
       event("Pour", 85, 25, "150", false, false, "Top up gently."),
-      event("Drawdown", 110, 420, "", false, true, "Long drip window."),
+      event("Drawdown", 110, 530, "", false, true, "Long drip window."),
     ],
   },
 ];
@@ -203,7 +194,7 @@ const blankDraft: Draft = {
   grinder: "Fellow Ode Gen 2",
   clicks: "5",
   temp: 93,
-  roast: "Medium-Light",
+  roast: ["Medium-Light"],
   bean: "Washed coffee, clean sweetness",
   agitation: "Moderate",
   pours: 3,
@@ -214,7 +205,7 @@ const blankDraft: Draft = {
     event("Bloom", 0, 40, "45", true, false, "Wet all grounds."),
     event("Pour", 40, 35, "180", false, false, "Steady spiral pour."),
     event("Pour", 100, 35, "300", false, false, "Finish through center."),
-    event("Drawdown", 135, 60, "", false, true, "Flat bed at finish."),
+    event("Drawdown", 135, 195, "", false, true, "Flat bed at finish."),
   ],
 };
 
@@ -257,16 +248,77 @@ function ratioLabel(value: number) {
   return `1:${Number.isInteger(value) ? value : value.toFixed(1)}`;
 }
 
+function normalizeRoast(roast: Roast | Roast[] | undefined) {
+  if (!roast) return [];
+  return Array.isArray(roast) ? roast : [roast];
+}
+
+function roastLabel(roast: Roast | Roast[] | undefined) {
+  return normalizeRoast(roast).join(" / ");
+}
+
 function defaultRecipeTitle(recipe: Pick<Recipe, "brewer" | "dose" | "ratio" | "roast">) {
-  return `${recipe.brewer} ${recipe.dose}g ${ratioLabel(recipe.ratio)} ${recipe.roast} roast`;
+  const roastText = roastLabel(recipe.roast);
+  return [
+    recipe.brewer,
+    recipe.dose ? `${recipe.dose}g` : "",
+    recipe.ratio ? ratioLabel(recipe.ratio) : "",
+    roastText ? `${roastText} roast` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function recipeTitle(recipe: Pick<Recipe, "title" | "brewer" | "dose" | "ratio" | "roast">) {
   return recipe.title.trim() || defaultRecipeTitle(recipe);
 }
 
+function readNumberInput(value: string) {
+  if (!value.trim()) return 0;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function numberInputValue(value: number) {
+  return value === 0 ? "" : String(value);
+}
+
+function roundedRatio(water: number, dose: number) {
+  if (dose <= 0 || water <= 0) return 0;
+  return Number((water / dose).toFixed(2));
+}
+
+function isDrawdownEvent(step: Pick<TimelineEvent, "type">) {
+  return step.type.toLowerCase() === "drawdown";
+}
+
+function previousTimelineEnd(events: TimelineEvent[], index: number) {
+  return events
+    .slice(0, index)
+    .reduce((end, _, stepIndex) => Math.max(end, eventEnd(events, stepIndex)), 0);
+}
+
+function eventStart(events: TimelineEvent[], index: number) {
+  const step = events[index];
+  if (!step) return 0;
+  return isDrawdownEvent(step) ? previousTimelineEnd(events, index) : step.start;
+}
+
+function eventEnd(events: TimelineEvent[], index: number) {
+  const step = events[index];
+  if (!step) return 0;
+  const start = eventStart(events, index);
+  return isDrawdownEvent(step)
+    ? Math.max(start, step.duration)
+    : step.start + step.duration;
+}
+
+function eventDuration(events: TimelineEvent[], index: number) {
+  return Math.max(0, eventEnd(events, index) - eventStart(events, index));
+}
+
 function totalTime(events: TimelineEvent[]) {
-  return Math.max(180, ...events.map((step) => step.start + step.duration));
+  return Math.max(180, ...events.map((_, index) => eventEnd(events, index)));
 }
 
 function targetNumber(target: string) {
@@ -306,16 +358,17 @@ function timelineScaleLabel(events: TimelineEvent[], index: number) {
   return cumulativeWeight === null ? "no scale target" : `${gramLabel(cumulativeWeight)} cumulative`;
 }
 
-function eventWindowLabel(step: TimelineEvent) {
-  const start = formatTime(step.start);
-  if (!step.range) return start;
-  return `${start}-${formatTime(step.start + step.duration)}`;
+function eventWindowLabel(events: TimelineEvent[], index: number) {
+  const step = events[index];
+  const start = formatTime(eventStart(events, index));
+  if (!step.range && !isDrawdownEvent(step)) return start;
+  return `${start}-${formatTime(eventEnd(events, index))}`;
 }
 
 function eventWaterAmount(events: TimelineEvent[], index: number) {
   const step = events[index];
   const current = targetNumber(step.target);
-  if (current === null) return Math.max(12, step.duration / 2);
+  if (current === null) return Math.max(12, eventDuration(events, index) / 2);
   if (step.tare) return current;
 
   const previous = [...events]
@@ -353,7 +406,7 @@ function readRecipes() {
   try {
     const stored = window.localStorage.getItem(recipeStorageKey);
     return stored
-      ? migrateRecipes(JSON.parse(stored) as Array<Recipe & { yield?: number; saveCount?: number }>)
+      ? migrateRecipes(JSON.parse(stored) as StoredRecipe[])
       : seedRecipes;
   } catch {
     return seedRecipes;
@@ -385,14 +438,17 @@ function draftWithAuthorName() {
   };
 }
 
-function normalizeStoredRecipe(recipe: Recipe & { yield?: number; saveCount?: number }) {
-  const normalized = { ...recipe };
+function normalizeStoredRecipe(recipe: StoredRecipe) {
+  const normalized = {
+    ...recipe,
+    roast: normalizeRoast(recipe.roast),
+  };
   delete normalized.yield;
   delete normalized.saveCount;
   return normalized as Recipe;
 }
 
-function migrateRecipes(recipes: Array<Recipe & { yield?: number; saveCount?: number }>) {
+function migrateRecipes(recipes: StoredRecipe[]) {
   return recipes.map(normalizeStoredRecipe);
 }
 
@@ -753,29 +809,43 @@ function Builder({
     onDraft({ ...draft, [key]: value });
   }
 
-  function setNumberField(key: keyof Draft, value: string) {
-    const numberValue = Number(value);
-    onDraft({ ...draft, [key]: Number.isFinite(numberValue) ? numberValue : 0 });
+  function setNumberField(key: "temp" | "pours" | "stirs", value: string) {
+    onDraft({ ...draft, [key]: readNumberInput(value) });
   }
 
   function updateDose(value: string) {
-    const dose = Number(value);
-    const nextDose = Number.isFinite(dose) ? dose : 0;
+    const nextDose = readNumberInput(value);
     onDraft({
       ...draft,
       dose: nextDose,
-      water: Math.round(nextDose * draft.ratio),
+      ratio: nextDose > 0 && draft.water > 0 ? roundedRatio(draft.water, nextDose) : draft.ratio,
     });
   }
 
   function updateRatio(value: string) {
-    const ratio = Number(value);
-    const nextRatio = Number.isFinite(ratio) ? ratio : 0;
+    const nextRatio = readNumberInput(value);
     onDraft({
       ...draft,
       ratio: nextRatio,
-      water: Math.round(draft.dose * nextRatio),
+      water: draft.dose > 0 && nextRatio > 0 ? Math.round(draft.dose * nextRatio) : draft.water,
     });
+  }
+
+  function updateWater(value: string) {
+    const nextWater = readNumberInput(value);
+    onDraft({
+      ...draft,
+      water: nextWater,
+      ratio: draft.dose > 0 && nextWater > 0 ? roundedRatio(nextWater, draft.dose) : draft.ratio,
+    });
+  }
+
+  function toggleRoast(roast: Roast) {
+    const currentRoasts = normalizeRoast(draft.roast);
+    const nextRoasts = currentRoasts.includes(roast)
+      ? currentRoasts.filter((item) => item !== roast)
+      : [...currentRoasts, roast];
+    setField("roast", nextRoasts);
   }
 
   function updateEvent(index: number, patch: Partial<TimelineEvent>) {
@@ -785,6 +855,20 @@ function Builder({
         stepIndex === index ? { ...step, ...patch } : step,
       ),
     });
+  }
+
+  function updateEventType(index: number, type: string) {
+    const step = draft.timeline[index];
+    const previousEnd = previousTimelineEnd(draft.timeline, index);
+    const patch: Partial<TimelineEvent> = { type };
+
+    if (type === "Drawdown") {
+      patch.start = previousEnd;
+      patch.duration = Math.max(step.duration, previousEnd + 60);
+      patch.range = true;
+    }
+
+    updateEvent(index, patch);
   }
 
   function addEvent() {
@@ -809,7 +893,7 @@ function Builder({
   }
 
   return (
-    <section className="mx-auto grid max-w-7xl gap-8 px-5 py-8 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.82fr)]">
+    <section className="builder-workspace mx-auto grid gap-8 px-5 py-8 sm:px-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
       <div className="builder-panel">
         <div className="section-heading">
           <div>
@@ -845,14 +929,20 @@ function Builder({
           </label>
           <label>
             Dose (g)
-            <input type="number" value={draft.dose} onChange={(event) => updateDose(event.target.value)} />
+            <input
+              type="number"
+              value={numberInputValue(draft.dose)}
+              placeholder="0"
+              onChange={(event) => updateDose(event.target.value)}
+            />
           </label>
           <label>
             Ratio
             <input
               type="number"
               step="0.1"
-              value={draft.ratio}
+              value={numberInputValue(draft.ratio)}
+              placeholder="0"
               onChange={(event) => updateRatio(event.target.value)}
             />
           </label>
@@ -860,26 +950,38 @@ function Builder({
             Water (g)
             <input
               type="number"
-              value={draft.water}
-              onChange={(event) => setNumberField("water", event.target.value)}
+              value={numberInputValue(draft.water)}
+              placeholder="0"
+              onChange={(event) => updateWater(event.target.value)}
             />
           </label>
           <label>
             Temperature (C)
             <input
               type="number"
-              value={draft.temp}
+              value={numberInputValue(draft.temp)}
+              placeholder="0"
               onChange={(event) => setNumberField("temp", event.target.value)}
             />
           </label>
-          <label>
-            Roast
-            <select value={draft.roast} onChange={(event) => setField("roast", event.target.value as Roast)}>
-              {["Light", "Medium-Light", "Medium", "Medium-Dark", "Dark"].map((roast) => (
-                <option key={roast}>{roast}</option>
+          <div className="field-block wide">
+            <span className="field-label">Roast level</span>
+            <div className="choice-group" role="group" aria-label="Roast level">
+              {roastLevels.map((roast) => (
+                <label
+                  className={`choice-chip ${draft.roast.includes(roast) ? "is-selected" : ""}`}
+                  key={roast}
+                >
+                  <input
+                    type="checkbox"
+                    checked={draft.roast.includes(roast)}
+                    onChange={() => toggleRoast(roast)}
+                  />
+                  <span>{roast}</span>
+                </label>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
           <label>
             Grind
             <select value={draft.grind} onChange={(event) => setField("grind", event.target.value as Grind)}>
@@ -890,12 +992,7 @@ function Builder({
           </label>
           <label>
             Grinder
-            <input list="grinders" value={draft.grinder} onChange={(event) => setField("grinder", event.target.value)} />
-            <datalist id="grinders">
-              {grinders.map((grinder) => (
-                <option key={grinder}>{grinder}</option>
-              ))}
-            </datalist>
+            <input value={draft.grinder} onChange={(event) => setField("grinder", event.target.value)} />
           </label>
           <label>
             Clicks / setting
@@ -916,7 +1013,8 @@ function Builder({
             Pours
             <input
               type="number"
-              value={draft.pours}
+              value={numberInputValue(draft.pours)}
+              placeholder="0"
               onChange={(event) => setNumberField("pours", event.target.value)}
             />
           </label>
@@ -924,7 +1022,8 @@ function Builder({
             Stirs
             <input
               type="number"
-              value={draft.stirs}
+              value={numberInputValue(draft.stirs)}
+              placeholder="0"
               onChange={(event) => setNumberField("stirs", event.target.value)}
             />
           </label>
@@ -961,30 +1060,41 @@ function Builder({
             </button>
           </div>
 
-          {draft.timeline.map((step, index) => (
-            <div className="event-row" key={step.id}>
+          {draft.timeline.map((step, index) => {
+            const isDrawdown = isDrawdownEvent(step);
+
+            return (
+            <div className={isDrawdown ? "event-row drawdown-row" : "event-row"} key={step.id}>
               <select
                 value={step.type}
-                onChange={(event) => updateEvent(index, { type: event.target.value })}
+                onChange={(event) => updateEventType(index, event.target.value)}
               >
                 {eventTypes.map((type) => (
                   <option key={type}>{type}</option>
                 ))}
               </select>
+              {isDrawdown ? (
+                <div className="event-elapsed-note">
+                  <span>After previous step</span>
+                </div>
+              ) : (
+                <label>
+                  Start
+                  <input
+                    type="number"
+                    value={numberInputValue(step.start)}
+                    placeholder="0"
+                    onChange={(event) => updateEvent(index, { start: readNumberInput(event.target.value) })}
+                  />
+                </label>
+              )}
               <label>
-                Start
+                Duration (s)
                 <input
                   type="number"
-                  value={step.start}
-                  onChange={(event) => updateEvent(index, { start: Number(event.target.value) })}
-                />
-              </label>
-              <label>
-                Duration
-                <input
-                  type="number"
-                  value={step.duration}
-                  onChange={(event) => updateEvent(index, { duration: Number(event.target.value) })}
+                  value={numberInputValue(step.duration)}
+                  placeholder="0"
+                  onChange={(event) => updateEvent(index, { duration: readNumberInput(event.target.value) })}
                 />
               </label>
               <label>
@@ -1020,7 +1130,8 @@ function Builder({
                 Remove
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -1056,6 +1167,7 @@ function RecipePage({ recipe }: { recipe: Recipe }) {
 
 function RecipeHeader({ recipe, compact = false }: { recipe: Recipe; compact?: boolean }) {
   const grindItems = [
+    roastLabel(recipe.roast) ? `${roastLabel(recipe.roast)} roast` : "",
     recipe.grind,
     recipe.grinder.trim(),
     recipe.clicks.trim(),
@@ -1150,7 +1262,7 @@ function Timeline({ recipe }: { recipe: Recipe }) {
         <p className="eyebrow">Brew steps</p>
         <ol>
           {recipe.timeline.map((step, index) => {
-            const readout = `${eventWindowLabel(step)} · ${timelineScaleLabel(recipe.timeline, index)}`;
+            const readout = `${eventWindowLabel(recipe.timeline, index)} · ${timelineScaleLabel(recipe.timeline, index)}`;
             return (
               <li className="mobile-step" key={step.id}>
                 <div>
@@ -1186,21 +1298,23 @@ function Timeline({ recipe }: { recipe: Recipe }) {
           );
         })}
         {recipe.timeline.map((step, index) => {
-          const left = 5 + (step.start / length) * 90;
-          const width = Math.max(6, (step.duration / length) * 90);
+          const stepStart = eventStart(recipe.timeline, index);
+          const stepDuration = eventDuration(recipe.timeline, index);
+          const left = 5 + (stepStart / length) * 90;
+          const width = Math.max(6, (stepDuration / length) * 90);
           const scaleTarget = step.target.trim();
           const cumulativeWeight = cumulativeWeightAt(recipe.timeline, index);
           const cumulativeLabel =
             cumulativeWeight === null ? "" : gramLabel(cumulativeWeight);
-          const readout = `${eventWindowLabel(step)} · ${timelineScaleLabel(recipe.timeline, index)}`;
+          const readout = `${eventWindowLabel(recipe.timeline, index)} · ${timelineScaleLabel(recipe.timeline, index)}`;
           const amount = eventWaterAmount(recipe.timeline, index);
           const discSize = Math.max(16, Math.min(34, 15 + amount / 9));
           const stem = [64, 92, 52, 78][index % 4];
           const labelTop = baseline + 18 + (index % 2) * 94;
           const labelShift = left < 12 ? 48 : left > 88 ? -48 : 0;
-          const isRange = step.range;
+          const isRange = step.range || isDrawdownEvent(step);
           const eventLabel = [
-            formatTime(step.start),
+            formatTime(stepStart),
             step.type,
             scaleTarget ? scaleLabel(step) : "",
             cumulativeLabel ? `${cumulativeLabel} cumulative` : "",
@@ -1223,7 +1337,7 @@ function Timeline({ recipe }: { recipe: Recipe }) {
               >
                 <strong>{step.type}</strong>
                 <span className="score-readout">{readout}</span>
-                {step.duration >= 180 ? <b className="fast-forward">&gt;&gt;</b> : null}
+                {stepDuration >= 180 ? <b className="fast-forward">&gt;&gt;</b> : null}
                 {step.note.trim() ? <small>{step.note}</small> : null}
               </div>
             );
