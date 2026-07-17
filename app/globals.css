@@ -428,12 +428,17 @@ label {
 }
 
 .builder-workspace {
-  max-width: min(1640px, calc(100vw - 28px));
+  align-items: start;
+  max-width: 1180px;
   width: 100%;
 }
 
 .builder-panel {
   padding: 24px;
+}
+
+.preview-panel {
+  min-width: 0;
 }
 
 .notice {

@@ -893,7 +893,7 @@ function Builder({
   }
 
   return (
-    <section className="builder-workspace mx-auto grid gap-8 px-5 py-8 sm:px-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
+    <section className="builder-workspace mx-auto grid gap-8 px-5 py-10 sm:px-8">
       <div className="builder-panel">
         <div className="section-heading">
           <div>
