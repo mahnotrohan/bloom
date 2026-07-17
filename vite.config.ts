@@ -13,13 +13,6 @@ const localBindingConfig = {
   main: "./worker/index.ts",
   workers_dev: true,
   compatibility_flags: ["nodejs_compat"],
-  routes: [
-    {
-      pattern: "brew-log.rohanmahnot.space",
-      custom_domain: true,
-      zone_name: "rohanmahnot.space",
-    },
-  ],
   d1_databases: d1
     ? [
         {
