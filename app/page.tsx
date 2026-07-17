@@ -269,7 +269,6 @@ function totalTime(events: TimelineEvent[]) {
   return Math.max(180, ...events.map((step) => step.start + step.duration));
 }
 
-const flavourFamilies = [
 function targetNumber(target: string) {
   const match = target.match(/-?\d+(\.\d+)?/);
   return match ? Number(match[0]) : null;
@@ -277,7 +276,9 @@ function targetNumber(target: string) {
 
 function scaleLabel(step: TimelineEvent) {
   const target = step.target.trim();
-  return target ? `${step.tare ? "+" : ""}${target}g` : "no scale target";
+  if (!target) return "no scale target";
+  const normalizedTarget = /g$/i.test(target) ? target : `${target}g`;
+  return `${step.tare ? "+" : ""}${normalizedTarget}`;
 }
 
 function eventWindowLabel(step: TimelineEvent) {
@@ -551,9 +552,7 @@ function Library({
           <div className="hero-copy">
             <div>
               <p className="eyebrow">Open recipe notation</p>
-              <h1 className="journal-title">
-                Brew recipes <em>people</em> can actually follow.
-              </h1>
+              <h1 className="journal-title">Brew recipes people can actually follow.</h1>
             </div>
             <p className="hero-dek">
               A shared, brewer-agnostic place to write coffee recipes down,
@@ -1080,7 +1079,7 @@ function Timeline({ recipe }: { recipe: Recipe }) {
   const length = totalTime(recipe.timeline);
   const trackWidth = Math.max(880, length * 3.1);
   const baseline = 140;
-  const trackHeight = 320;
+  const trackHeight = 460;
   const markers = Array.from({ length: Math.floor(length / 15) + 1 }, (_, index) => index * 15);
 
   function handlePointerDown(event: ReactPointerEvent<HTMLElement>) {
@@ -1141,7 +1140,7 @@ function Timeline({ recipe }: { recipe: Recipe }) {
                 top: `${isMinute ? baseline - 34 : baseline - 18}px`,
               }}
             >
-              {isMinute ? <em>{formatTime(marker)}</em> : null}
+              {isMinute ? <span>{formatTime(marker)}</span> : null}
             </span>
           );
         })}
@@ -1151,13 +1150,15 @@ function Timeline({ recipe }: { recipe: Recipe }) {
           const scaleTarget = step.target.trim();
           const readout = `${eventWindowLabel(step)} · ${scaleLabel(step)}`;
           const amount = eventWaterAmount(recipe.timeline, index);
-          const discSize = Math.max(18, Math.min(48, 16 + amount / 5));
+          const discSize = Math.max(16, Math.min(34, 15 + amount / 9));
           const stem = [64, 92, 52, 78][index % 4];
+          const labelTop = baseline + 18 + (index % 2) * 94;
+          const labelShift = left < 12 ? 48 : left > 88 ? -48 : 0;
           const isRange = step.range;
           const eventLabel = [
             formatTime(step.start),
             step.type,
-            scaleTarget ? `${step.tare ? "+" : ""}${scaleTarget}g` : "",
+            scaleTarget ? scaleLabel(step) : "",
             step.note,
           ]
             .filter(Boolean)
@@ -1172,7 +1173,7 @@ function Timeline({ recipe }: { recipe: Recipe }) {
                 style={{
                   left: `${left}%`,
                   width: `${width}%`,
-                  top: `${baseline + 100}px`,
+                  top: `${baseline + 220}px`,
                 }}
               >
                 <strong>{step.type}</strong>
@@ -1193,13 +1194,17 @@ function Timeline({ recipe }: { recipe: Recipe }) {
                 "--stem": `${stem}px`,
                 "--disc": `${discSize}px`,
                 "--baseline": `${baseline}px`,
+                "--label-top": `${labelTop}px`,
+                "--label-shift": `${labelShift}px`,
               } as CSSProperties}
             >
               <span className="score-stem" />
               <span className={index === 0 ? "score-disc bloom-disc" : "score-disc"} />
-              <strong>{step.type}</strong>
-              <em className="score-readout">{readout}</em>
-              {step.note.trim() ? <small>{step.note}</small> : null}
+              <div className="score-note-label">
+                <strong>{step.type}</strong>
+                <span className="score-readout">{readout}</span>
+                {step.note.trim() ? <small>{step.note}</small> : null}
+              </div>
             </div>
           );
         })}
