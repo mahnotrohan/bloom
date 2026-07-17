@@ -580,8 +580,7 @@ function Library({
               </h1>
             </div>
             <p className="hero-dek">
-              A shared, brewer-agnostic place to write coffee recipes down,
-              preserve the numbers, and hand someone a page they can brew from.
+              A shared space to write coffee recipes.
             </p>
             <div className="flex flex-wrap gap-3">
               <button className="primary-button" onClick={onCreate}>
