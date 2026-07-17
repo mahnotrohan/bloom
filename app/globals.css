@@ -112,9 +112,9 @@ label {
   color: var(--ink);
   display: block;
   font-family: var(--serif);
-  font-size: clamp(3.1rem, 6vw, 4.15rem);
+  font-size: clamp(2.8rem, 5.4vw, 4.05rem);
   font-weight: 420;
-  line-height: 0.88;
+  line-height: 0.94;
 }
 
 .brand-lockup span {
@@ -203,9 +203,9 @@ label {
 
 .journal-title {
   font-family: var(--serif);
-  font-size: clamp(3.25rem, 6.2vw, 4.35rem);
+  font-size: clamp(3rem, 5.8vw, 4.1rem);
   font-weight: 360;
-  line-height: 0.98;
+  line-height: 1;
   margin-top: 18px;
 }
 
@@ -829,7 +829,7 @@ label {
   }
 
   .journal-title {
-    font-size: 3.55rem;
+    font-size: 3.15rem;
   }
 
   .form-grid,
@@ -860,8 +860,8 @@ label {
   }
 
   .brand-lockup strong {
-    font-size: clamp(2.35rem, 14vw, 3.15rem);
-    line-height: 0.95;
+    font-size: clamp(2rem, 11vw, 2.6rem);
+    line-height: 1;
   }
 
   .issue-meta,
@@ -887,13 +887,13 @@ label {
   }
 
   .journal-title {
-    font-size: clamp(2.65rem, 13vw, 3.35rem);
-    line-height: 1;
+    font-size: clamp(2.2rem, 10.5vw, 2.85rem);
+    line-height: 1.06;
     margin-top: 12px;
   }
 
   .hero-dek {
-    font-size: 1rem;
+    font-size: 0.98rem;
     line-height: 1.45;
     max-width: none;
   }
@@ -926,7 +926,7 @@ label {
   }
 
   .section-heading h2 {
-    font-size: 2rem;
+    font-size: 1.82rem;
   }
 
   .filter-bar,
@@ -947,8 +947,8 @@ label {
   }
 
   .recipe-card h3 {
-    font-size: 1.42rem;
-    line-height: 1.08;
+    font-size: 1.32rem;
+    line-height: 1.12;
   }
 
   .recipe-card .recipe-stats {
@@ -979,11 +979,12 @@ label {
   }
 
   .recipe-header h2 {
-    font-size: clamp(2.15rem, 11vw, 2.55rem);
+    font-size: clamp(1.85rem, 9.2vw, 2.3rem);
+    line-height: 1.05;
   }
 
   .recipe-header.compact h2 {
-    font-size: clamp(1.9rem, 9vw, 2.3rem);
+    font-size: clamp(1.65rem, 8vw, 2rem);
   }
 
   .header-metrics {
@@ -1001,7 +1002,7 @@ label {
   }
 
   .header-metrics strong {
-    font-size: 1.55rem;
+    font-size: 1.38rem;
   }
 
   .grind-strip span {
@@ -1023,6 +1024,35 @@ label {
 
   .score-canvas {
     display: none;
+  }
+}
+
+@media (max-width: 430px) {
+  .brand-lockup strong {
+    font-size: clamp(1.85rem, 10vw, 2.25rem);
+  }
+
+  .journal-title {
+    font-size: clamp(2rem, 9.2vw, 2.45rem);
+    line-height: 1.08;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .ghost-button {
+    font-size: 0.68rem;
+    min-height: 40px;
+  }
+
+  .featured-sheet,
+  .preview-panel,
+  .builder-panel,
+  .public-recipe {
+    padding: 15px;
+  }
+
+  .mobile-step strong {
+    font-size: 1.18rem;
   }
 }
 
