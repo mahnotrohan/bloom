@@ -8,6 +8,7 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 
 type Brewer =
@@ -190,22 +191,21 @@ const blankDraft: Draft = {
   dose: 18,
   ratio: 16.7,
   water: 300,
-  grind: "Medium-Fine",
-  grinder: "Fellow Ode Gen 2 · 5",
+  grind: "" as Grind,
+  grinder: "",
   clicks: "",
-  temp: 93,
-  roast: ["Medium-Light"],
-  bean: "Washed coffee, clean sweetness",
-  agitation: "Moderate",
-  pours: 3,
+  temp: 0,
+  roast: [],
+  bean: "",
+  agitation: "" as Agitation,
+  pours: 0,
   stirs: 0,
-  swirl: true,
+  swirl: false,
   creator: "",
   timeline: [
-    event("Bloom", 0, 40, "45", true, false, "Wet all grounds."),
-    event("Pour", 40, 35, "180", false, false, "Steady spiral pour."),
-    event("Pour", 100, 35, "300", false, false, "Finish through center."),
-    event("Drawdown", 135, 195, "", false, true, "Flat bed at finish."),
+    event("Bloom", 0, 30, "45", false, false, ""),
+    event("Pour", 30, 30, "300", false, false, ""),
+    event("Drawdown", 60, 180, "", false, true, ""),
   ],
 };
 
@@ -1089,6 +1089,71 @@ function CreatorProfile({
   );
 }
 
+const detailKeys = [
+  "temp",
+  "grind",
+  "roast",
+  "agitation",
+  "grinder",
+  "pours",
+  "stirs",
+  "swirl",
+] as const;
+type DetailKey = (typeof detailKeys)[number];
+
+const detailLabels: Record<DetailKey, string> = {
+  temp: "Temp",
+  grind: "Grind",
+  roast: "Roast",
+  agitation: "Agitation",
+  grinder: "Grinder",
+  pours: "Pours",
+  stirs: "Stirs",
+  swirl: "Swirl",
+};
+
+function activeDetailKeys(d: Draft): DetailKey[] {
+  const a: DetailKey[] = [];
+  if (d.temp > 0) a.push("temp");
+  if (d.grind) a.push("grind");
+  if (normalizeRoast(d.roast).length) a.push("roast");
+  if (d.agitation) a.push("agitation");
+  if (d.grinder.trim()) a.push("grinder");
+  if (d.pours > 0) a.push("pours");
+  if (d.stirs > 0) a.push("stirs");
+  if (d.swirl) a.push("swirl");
+  return a;
+}
+
+function parseTimeInput(value: string): number {
+  const v = value.trim();
+  if (v.includes(":")) {
+    const [m, s] = v.split(":");
+    return (parseInt(m || "0", 10) || 0) * 60 + (parseInt(s || "0", 10) || 0);
+  }
+  return parseInt(v || "0", 10) || 0;
+}
+
+function DetailField({
+  label,
+  onRemove,
+  children,
+}: {
+  label: string;
+  onRemove: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="detail-field">
+      <span className="detail-field-label">{label}</span>
+      <div className="detail-field-input">{children}</div>
+      <button className="detail-remove" onClick={onRemove} aria-label={`Remove ${label}`}>
+        ✕
+      </button>
+    </div>
+  );
+}
+
 function Builder({
   draft,
   onDraft,
@@ -1100,12 +1165,7 @@ function Builder({
   onPublish: () => void;
   publishMessage: string;
 }) {
-  const previewRecipe: Recipe = {
-    ...draft,
-    id: "preview",
-    creator: draft.creator || "Guest brewer",
-    createdAt: new Date().toISOString(),
-  };
+  const [openDetails, setOpenDetails] = useState<DetailKey[]>(() => activeDetailKeys(draft));
 
   function setField<K extends keyof Draft>(key: K, value: Draft[K]) {
     onDraft({ ...draft, [key]: value });
@@ -1124,15 +1184,6 @@ function Builder({
     });
   }
 
-  function updateRatio(value: string) {
-    const nextRatio = readNumberInput(value);
-    onDraft({
-      ...draft,
-      ratio: nextRatio,
-      water: draft.dose > 0 && nextRatio > 0 ? Math.round(draft.dose * nextRatio) : draft.water,
-    });
-  }
-
   function updateWater(value: string) {
     const nextWater = readNumberInput(value);
     onDraft({
@@ -1140,6 +1191,39 @@ function Builder({
       water: nextWater,
       ratio: draft.dose > 0 && nextWater > 0 ? roundedRatio(nextWater, draft.dose) : draft.ratio,
     });
+  }
+
+  const detailDefaults: Record<DetailKey, Partial<Draft>> = {
+    temp: { temp: 93 },
+    grind: { grind: "Medium" as Grind },
+    roast: { roast: [] },
+    agitation: { agitation: "Moderate" as Agitation },
+    grinder: { grinder: "" },
+    pours: { pours: 3 },
+    stirs: { stirs: 1 },
+    swirl: { swirl: true },
+  };
+
+  const detailReset: Record<DetailKey, Partial<Draft>> = {
+    temp: { temp: 0 },
+    grind: { grind: "" as Grind },
+    roast: { roast: [] },
+    agitation: { agitation: "" as Agitation },
+    grinder: { grinder: "" },
+    pours: { pours: 0 },
+    stirs: { stirs: 0 },
+    swirl: { swirl: false },
+  };
+
+  function addDetail(key: DetailKey) {
+    if (openDetails.includes(key)) return;
+    setOpenDetails([...openDetails, key]);
+    onDraft({ ...draft, ...detailDefaults[key] });
+  }
+
+  function removeDetail(key: DetailKey) {
+    setOpenDetails(openDetails.filter((k) => k !== key));
+    onDraft({ ...draft, ...detailReset[key] });
   }
 
   function updateEvent(index: number, patch: Partial<TimelineEvent>) {
@@ -1187,268 +1271,255 @@ function Builder({
   }
 
   return (
-    <section className="builder-workspace mx-auto grid gap-8 px-5 py-10 sm:px-8">
-      <div className="builder-panel">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Recipe builder</p>
-            <h2>Header and brew timeline</h2>
-          </div>
-          <button className="primary-button" onClick={onPublish}>
-            Publish
-          </button>
+    <section className="builder-page mx-auto px-5 sm:px-8">
+      <div className="builder-head">
+        <div>
+          <p className="eyebrow">Write a recipe</p>
+          <h2>Your recipe</h2>
         </div>
+        <button className="primary-button" onClick={onPublish}>
+          Publish
+        </button>
+      </div>
 
-        {publishMessage ? <p className="notice">{publishMessage}</p> : null}
+      {publishMessage ? <p className="notice">{publishMessage}</p> : null}
 
-        <div className="builder-form">
-          {/* Row 1 — Title + Brewer */}
-          <div className="form-row cols-title">
-            <label>
-              Recipe title
-              <input
-                value={draft.title}
-                onChange={(event) => setField("title", event.target.value)}
-                placeholder={defaultRecipeTitle(draft)}
-              />
-            </label>
-            <label>
-              Brewer
-              <select
-                value={draft.brewer}
-                onChange={(event) => setField("brewer", event.target.value as Brewer)}
-              >
-                {brewers.map((brewer) => (
-                  <option key={brewer}>{brewer}</option>
-                ))}
-              </select>
-            </label>
-          </div>
+      <label className="field-full">
+        Title
+        <input
+          value={draft.title}
+          onChange={(e) => setField("title", e.target.value)}
+          placeholder={defaultRecipeTitle(draft) || "Name your recipe"}
+        />
+      </label>
 
-          {/* Row 2 — Dose + Ratio + Water + Grind settings */}
-          <div className="form-row cols-brew">
-            <label>
-              Dose (g)
-              <input
-                type="number"
-                value={numberInputValue(draft.dose)}
-                placeholder="0"
-                onChange={(event) => updateDose(event.target.value)}
-              />
-            </label>
-            <label>
-              Ratio
-              <input
-                type="number"
-                step="0.1"
-                value={numberInputValue(draft.ratio)}
-                placeholder="0"
-                onChange={(event) => updateRatio(event.target.value)}
-              />
-            </label>
-            <label>
-              Water (g)
-              <input
-                type="number"
-                value={numberInputValue(draft.water)}
-                placeholder="0"
-                onChange={(event) => updateWater(event.target.value)}
-              />
-            </label>
-            <div className="field-block">
-              <span className="field-label">Grind settings</span>
-              <div className="grind-stack">
-                <select
-                  value={draft.grind}
-                  onChange={(event) => setField("grind", event.target.value as Grind)}
-                >
-                  {["Fine", "Medium-Fine", "Medium", "Medium-Coarse", "Coarse"].map((grind) => (
-                    <option key={grind}>{grind}</option>
-                  ))}
-                </select>
-                <input
-                  value={draft.grinder}
-                  placeholder="Grinder & setting — e.g. Fellow Ode Gen 2 · 5"
-                  onChange={(event) => setField("grinder", event.target.value)}
-                />
-              </div>
-            </div>
-          </div>
+      <div className="essentials">
+        <label>
+          Brewer
+          <select value={draft.brewer} onChange={(e) => setField("brewer", e.target.value as Brewer)}>
+            {brewers.map((b) => (
+              <option key={b}>{b}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Coffee (g)
+          <input
+            type="number"
+            value={numberInputValue(draft.dose)}
+            placeholder="0"
+            onChange={(e) => updateDose(e.target.value)}
+          />
+        </label>
+        <label>
+          Water (g)
+          <input
+            type="number"
+            value={numberInputValue(draft.water)}
+            placeholder="0"
+            onChange={(e) => updateWater(e.target.value)}
+          />
+        </label>
+      </div>
+      {draft.dose > 0 && draft.water > 0 ? (
+        <p className="ratio-hint">Ratio {ratioLabel(roundedRatio(draft.water, draft.dose))}</p>
+      ) : null}
 
-          {/* Row 3 — Temperature + Roast level */}
-          <div className="form-row cols-2">
-            <label>
-              Temperature (°C)
-              <input
-                type="number"
-                value={numberInputValue(draft.temp)}
-                placeholder="0"
-                onChange={(event) => setNumberField("temp", event.target.value)}
-              />
-            </label>
-            <label>
-              Roast level
-              <select
-                value={draft.roast[0] ?? ""}
-                onChange={(event) =>
-                  setField("roast", event.target.value ? [event.target.value as Roast] : [])
-                }
-              >
-                <option value="">Select roast</option>
-                {roastLevels.map((roast) => (
-                  <option key={roast} value={roast}>
-                    {roast}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {/* Row 4 — Agitation + Pours + Stirs + Swirl */}
-          <div className="form-row cols-4">
-            <label>
-              Agitation
-              <select
-                value={draft.agitation}
-                onChange={(event) => setField("agitation", event.target.value as Agitation)}
-              >
-                {["Gentle", "Moderate", "Vigorous"].map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Pours
-              <input
-                type="number"
-                value={numberInputValue(draft.pours)}
-                placeholder="0"
-                onChange={(event) => setNumberField("pours", event.target.value)}
-              />
-            </label>
-            <label>
-              Stirs
-              <input
-                type="number"
-                value={numberInputValue(draft.stirs)}
-                placeholder="0"
-                onChange={(event) => setNumberField("stirs", event.target.value)}
-              />
-            </label>
-            <label className="checkbox-label swirl-cell">
-              <input
-                type="checkbox"
-                checked={draft.swirl}
-                onChange={(event) => setField("swirl", event.target.checked)}
-              />
-              Swirl
-            </label>
-          </div>
-
-          {/* Row 5 — Notes + Your name */}
-          <div className="form-row cols-notes">
-            <label>
-              Notes
-              <input
-                value={draft.bean}
-                placeholder="Tasting notes, technique, verdict…"
-                onChange={(event) => setField("bean", event.target.value)}
-              />
-            </label>
-            <label>
-              Your name
-              <input
-                value={draft.creator}
-                onChange={(event) => setField("creator", event.target.value)}
-                placeholder="Shown as recipe author"
-              />
-            </label>
-          </div>
-        </div>
-
-        <div className="timeline-editor">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Timeline</p>
-              <h2>Events</h2>
-            </div>
-            <button className="secondary-button" onClick={addEvent}>
-              Add event
-            </button>
-          </div>
-
-          {draft.timeline.map((step, index) => {
-            const isDrawdown = isDrawdownEvent(step);
-
-            return (
-            <div className={isDrawdown ? "event-row drawdown-row" : "event-row"} key={step.id}>
-              <select
-                value={step.type}
-                onChange={(event) => updateEventType(index, event.target.value)}
-              >
-                {eventTypes.map((type) => (
-                  <option key={type}>{type}</option>
-                ))}
-              </select>
-              {isDrawdown ? (
-                <div className="event-elapsed-note">
-                  <span>After previous step</span>
-                </div>
-              ) : (
-                <label>
-                  Start
-                  <input
-                    type="number"
-                    value={numberInputValue(step.start)}
-                    placeholder="0"
-                    onChange={(event) => updateEvent(index, { start: readNumberInput(event.target.value) })}
-                  />
-                </label>
-              )}
-              <label>
-                Duration (s)
+      <div className="details-block">
+        <p className="field-label">
+          Details <span className="opt">- optional, add what you like</span>
+        </p>
+        {openDetails.length ? (
+          <div className="detail-fields">
+            {openDetails.includes("temp") ? (
+              <DetailField label="Temp (C)" onRemove={() => removeDetail("temp")}>
                 <input
                   type="number"
-                  value={numberInputValue(step.duration)}
+                  value={numberInputValue(draft.temp)}
                   placeholder="0"
-                  onChange={(event) => updateEvent(index, { duration: readNumberInput(event.target.value) })}
+                  onChange={(e) => setNumberField("temp", e.target.value)}
                 />
-              </label>
-              <label>
-                Scale
+              </DetailField>
+            ) : null}
+            {openDetails.includes("grind") ? (
+              <DetailField label="Grind" onRemove={() => removeDetail("grind")}>
+                <select value={draft.grind} onChange={(e) => setField("grind", e.target.value as Grind)}>
+                  <option value="">Select</option>
+                  {["Fine", "Medium-Fine", "Medium", "Medium-Coarse", "Coarse"].map((g) => (
+                    <option key={g}>{g}</option>
+                  ))}
+                </select>
+              </DetailField>
+            ) : null}
+            {openDetails.includes("roast") ? (
+              <DetailField label="Roast" onRemove={() => removeDetail("roast")}>
+                <select
+                  value={draft.roast[0] ?? ""}
+                  onChange={(e) => setField("roast", e.target.value ? [e.target.value as Roast] : [])}
+                >
+                  <option value="">Select</option>
+                  {roastLevels.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </DetailField>
+            ) : null}
+            {openDetails.includes("agitation") ? (
+              <DetailField label="Agitation" onRemove={() => removeDetail("agitation")}>
+                <select value={draft.agitation} onChange={(e) => setField("agitation", e.target.value as Agitation)}>
+                  <option value="">Select</option>
+                  {["Gentle", "Moderate", "Vigorous"].map((a) => (
+                    <option key={a}>{a}</option>
+                  ))}
+                </select>
+              </DetailField>
+            ) : null}
+            {openDetails.includes("grinder") ? (
+              <DetailField label="Grinder & setting" onRemove={() => removeDetail("grinder")}>
                 <input
-                  value={step.target}
-                  onChange={(event) => updateEvent(index, { target: event.target.value })}
+                  value={draft.grinder}
+                  placeholder="e.g. Comandante - 25"
+                  onChange={(e) => setField("grinder", e.target.value)}
                 />
-              </label>
-              <label className="checkbox-label">
+              </DetailField>
+            ) : null}
+            {openDetails.includes("pours") ? (
+              <DetailField label="Pours" onRemove={() => removeDetail("pours")}>
                 <input
-                  type="checkbox"
-                  checked={step.range}
-                  onChange={(event) => updateEvent(index, { range: event.target.checked })}
+                  type="number"
+                  value={numberInputValue(draft.pours)}
+                  placeholder="0"
+                  onChange={(e) => setNumberField("pours", e.target.value)}
                 />
-                Range
-              </label>
-              <input
-                className="event-note"
-                value={step.note}
-                placeholder="Note"
-                onChange={(event) => updateEvent(index, { note: event.target.value })}
-              />
-              <button className="ghost-button" onClick={() => removeEvent(index)}>
-                Remove
+              </DetailField>
+            ) : null}
+            {openDetails.includes("stirs") ? (
+              <DetailField label="Stirs" onRemove={() => removeDetail("stirs")}>
+                <input
+                  type="number"
+                  value={numberInputValue(draft.stirs)}
+                  placeholder="0"
+                  onChange={(e) => setNumberField("stirs", e.target.value)}
+                />
+              </DetailField>
+            ) : null}
+            {openDetails.includes("swirl") ? (
+              <DetailField label="Swirl" onRemove={() => removeDetail("swirl")}>
+                <label className="swirl-toggle">
+                  <input type="checkbox" checked={draft.swirl} onChange={(e) => setField("swirl", e.target.checked)} />
+                  Swirl the brewer
+                </label>
+              </DetailField>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="detail-chips">
+          {detailKeys
+            .filter((k) => !openDetails.includes(k))
+            .map((k) => (
+              <button key={k} className="detail-add" onClick={() => addDetail(k)}>
+                + {detailLabels[k]}
               </button>
-            </div>
-            );
-          })}
+            ))}
         </div>
       </div>
 
-      <aside className="preview-panel">
-        <p className="eyebrow">Live preview</p>
-        <RecipeHeader recipe={previewRecipe} />
-        <Timeline recipe={previewRecipe} />
-      </aside>
+      <div className="steps-block">
+        <div className="steps-head">
+          <p className="field-label" style={{ margin: 0 }}>
+            Pour steps <span className="opt">- optional</span>
+          </p>
+          <button className="secondary-button" onClick={addEvent}>
+            + Add step
+          </button>
+        </div>
+        {draft.timeline.length === 0 ? (
+          <div className="steps-empty">No steps yet - add pour steps for a timeline, or skip it.</div>
+        ) : (
+          draft.timeline.map((step, index) => {
+            const isDrawdown = isDrawdownEvent(step);
+            return (
+              <div className="step-row" key={step.id}>
+                <select className="step-type" value={step.type} onChange={(e) => updateEventType(index, e.target.value)}>
+                  {eventTypes.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+                {isDrawdown ? (
+                  <span className="step-say">
+                    finishes ~
+                    <input
+                      className="step-time"
+                      value={formatTime(step.duration)}
+                      onChange={(e) => updateEvent(index, { duration: parseTimeInput(e.target.value) })}
+                    />
+                  </span>
+                ) : (
+                  <span className="step-say">
+                    at
+                    <input
+                      className="step-time"
+                      value={formatTime(step.start)}
+                      onChange={(e) => updateEvent(index, { start: parseTimeInput(e.target.value) })}
+                    />
+                    &rarr; pour to
+                    <input
+                      className="step-target"
+                      value={step.target}
+                      placeholder="g"
+                      onChange={(e) => updateEvent(index, { target: e.target.value })}
+                    />
+                    g
+                  </span>
+                )}
+                <input
+                  className="step-note"
+                  value={step.note}
+                  placeholder="note (optional)"
+                  onChange={(e) => updateEvent(index, { note: e.target.value })}
+                />
+                <details className="step-more">
+                  <summary aria-label="More options">&#8943;</summary>
+                  <div className="step-adv">
+                    <label>
+                      Duration (s)
+                      <input
+                        type="number"
+                        value={numberInputValue(step.duration)}
+                        onChange={(e) => updateEvent(index, { duration: readNumberInput(e.target.value) })}
+                      />
+                    </label>
+                    <label className="checkbox-label">
+                      <input type="checkbox" checked={step.range} onChange={(e) => updateEvent(index, { range: e.target.checked })} />
+                      Time range
+                    </label>
+                    <button className="ghost-button" onClick={() => removeEvent(index)}>
+                      Remove step
+                    </button>
+                  </div>
+                </details>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="essentials notes-row">
+        <label className="notes-cell">
+          Notes
+          <input
+            value={draft.bean}
+            placeholder="Tasting notes, technique, verdict..."
+            onChange={(e) => setField("bean", e.target.value)}
+          />
+        </label>
+        <label>
+          Your name
+          <input value={draft.creator} placeholder="Author" onChange={(e) => setField("creator", e.target.value)} />
+        </label>
+      </div>
     </section>
   );
 }
