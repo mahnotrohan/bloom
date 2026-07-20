@@ -1,4 +1,4 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { recipes } from "../../../db/schema";
 
@@ -68,6 +68,24 @@ export async function POST(request: Request) {
       });
 
     return Response.json({ ok: true }, { status: 201 });
+  } catch (error) {
+    return Response.json({ error: toRouteErrorMessage(error) }, { status: 500 });
+  }
+}
+
+// DELETE /api/recipes?id=<id> — remove a recipe permanently.
+export async function DELETE(request: Request) {
+  try {
+    const id = new URL(request.url).searchParams.get("id")?.trim() ?? "";
+
+    if (!id) {
+      return Response.json({ error: "id is required" }, { status: 400 });
+    }
+
+    const db = getDb();
+    await db.delete(recipes).where(eq(recipes.id, id));
+
+    return Response.json({ ok: true });
   } catch (error) {
     return Response.json({ error: toRouteErrorMessage(error) }, { status: 500 });
   }

@@ -880,25 +880,18 @@ export default function Home() {
       storageReady.current = true;
       writeCookie(visitorCookieKey, "1");
 
-      // Reconcile with shared server storage (D1). The server is the source of
-      // truth; any recipe that exists only on this device (e.g. published
-      // before sync existed, or while offline) is pushed up so it stops being
-      // device-only. Seed recipes are never uploaded. If the server is
-      // unreachable, we silently keep the localStorage view.
+      // Reconcile with shared server storage (D1). The server is the single
+      // source of truth: on load we replace the local view with whatever the
+      // server has. We do NOT auto-upload device-only recipes here — publishing
+      // is what pushes a recipe up — so deletions on the server actually stick
+      // instead of being resurrected from a stale local cache. If the server is
+      // unreachable or empty, we silently keep the localStorage / seed view.
       void (async () => {
         const server = await fetchServerRecipes();
-        if (!server) return;
-        const seedIds = new Set(seedRecipes.map((recipe) => recipe.id));
-        const serverIds = new Set(server.map((recipe) => recipe.id));
-        const localOnly = cached.filter(
-          (recipe) => !serverIds.has(recipe.id) && !seedIds.has(recipe.id),
-        );
-        localOnly.forEach((recipe) => void saveServerRecipe(recipe));
-        const merged = [...server, ...localOnly];
-        if (!merged.length) return; // keep the seed fallback until something is stored
-        setRecipes(merged);
+        if (!server || !server.length) return;
+        setRecipes(server);
         try {
-          window.localStorage.setItem(recipeStorageKey, JSON.stringify(merged));
+          window.localStorage.setItem(recipeStorageKey, JSON.stringify(server));
         } catch {
           // ignore cache write failures
         }
