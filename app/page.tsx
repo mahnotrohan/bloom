@@ -335,12 +335,12 @@ async function renderRecipeImage(recipe: Recipe): Promise<Blob> {
   y += 62;
 
   ctx.fillStyle = INK;
-  ctx.font = font("700 80px");
+  ctx.font = font("700 66px");
   wrapCanvasText(ctx, recipeTitle(recipe), inner)
     .slice(0, 3)
     .forEach((line) => {
       ctx.fillText(line, P, y);
-      y += 88;
+      y += 74;
     });
   y += 4;
 
@@ -492,7 +492,7 @@ async function shareRecipeImage(recipe: Recipe, preRendered?: Blob | null) {
   URL.revokeObjectURL(objectUrl);
 }
 
-type ShareStyle = "bar" | "card" | "type";
+type ShareStyle = "bar" | "top" | "rail" | "type";
 type ShareFormat = "story" | "square";
 
 function coverDraw(
@@ -525,14 +525,25 @@ function photoDraw(
     return;
   }
 
-  // Blurred backdrop (scaled up slightly so blur edges never show).
-  ctx.save();
-  ctx.filter = "blur(48px)";
-  const bScale = Math.max(W / img.naturalWidth, H / img.naturalHeight) * 1.12;
-  const bw = img.naturalWidth * bScale;
-  const bh = img.naturalHeight * bScale;
-  ctx.drawImage(img, (W - bw) / 2, (H - bh) / 2, bw, bh);
-  ctx.restore();
+  // Blurred backdrop. iOS Safari ignores ctx.filter on canvas, so blur
+  // manually: bounce the image through a tiny canvas and scale it back up
+  // with smoothing — a cheap, everywhere-supported gaussian approximation.
+  const tiny = document.createElement("canvas");
+  tiny.width = Math.max(2, Math.round(W / 28));
+  tiny.height = Math.max(2, Math.round(H / 28));
+  const tctx = tiny.getContext("2d");
+  if (tctx) {
+    const tScale =
+      Math.max(tiny.width / img.naturalWidth, tiny.height / img.naturalHeight) * 1.12;
+    const tw = img.naturalWidth * tScale;
+    const th = img.naturalHeight * tScale;
+    tctx.drawImage(img, (tiny.width - tw) / 2, (tiny.height - th) / 2, tw, th);
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(tiny, 0, 0, W, H);
+    ctx.restore();
+  }
   // Slight darkening so the fitted photo pops.
   ctx.fillStyle = "rgba(20, 16, 12, 0.18)";
   ctx.fillRect(0, 0, W, H);
@@ -566,17 +577,6 @@ async function renderPhotoShareImage(
 
   photoDraw(ctx, photo, W, H);
 
-  // Wordmark + link, top-left over the photo.
-  ctx.textAlign = "left";
-  ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
-  ctx.shadowBlur = 14;
-  ctx.fillStyle = "#ffffff";
-  ctx.font = font("800 42px");
-  ctx.fillText("Bloom", 56, 104);
-  ctx.font = font("600 24px");
-  ctx.fillText("bloom.rohanmahnot.space", 56, 142);
-  ctx.shadowBlur = 0;
-
   const title = recipeTitle(recipe);
   const stats: [string, string][] = [];
   if (recipe.dose) stats.push(["COFFEE", `${recipe.dose}g`]);
@@ -588,18 +588,19 @@ async function renderPhotoShareImage(
     ? `${recipe.brewer} · by ${displayCreator(recipe.creator)}`
     : recipe.brewer;
 
-  if (style === "bar") {
-    const barH = 118 + 150;
-    const top = H - barH;
-    ctx.fillStyle = "rgba(250, 248, 244, 0.96)";
-    ctx.fillRect(0, top, W, barH);
-    ctx.fillStyle = accent;
-    ctx.fillRect(0, top, W, 10);
+  // Wordmark + link over the photo (bottom-left when the overlay sits at the top).
+  const wmY = style === "top" ? H - 88 : 104;
+  ctx.textAlign = "left";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = font("800 42px");
+  ctx.fillText("Bloom", 56, wmY);
+  ctx.font = font("600 24px");
+  ctx.fillText("bloom.rohanmahnot.space", 56, wmY + 38);
+  ctx.shadowBlur = 0;
 
-    ctx.fillStyle = "#20201e";
-    ctx.font = font("700 44px");
-    ctx.fillText(wrapCanvasText(ctx, `${title} — ${recipe.brewer}`, W - 112)[0], 56, top + 78);
-
+  const drawStatCells = (top: number, innerH: number) => {
     const cellW = (W - 112) / stats.length;
     ctx.strokeStyle = "#e5ddd2";
     ctx.lineWidth = 2;
@@ -607,44 +608,92 @@ async function renderPhotoShareImage(
       const cx = 56 + i * cellW;
       if (i) {
         ctx.beginPath();
-        ctx.moveTo(cx, top + 108);
-        ctx.lineTo(cx, top + barH - 30);
+        ctx.moveTo(cx, top);
+        ctx.lineTo(cx, top + innerH);
         ctx.stroke();
       }
       ctx.fillStyle = "#6e6b66";
       ctx.font = font("700 22px");
-      ctx.fillText(label, cx + (i ? 28 : 0), top + 142);
+      ctx.fillText(label, cx + (i ? 28 : 0), top + 34);
       ctx.fillStyle = "#20201e";
-      ctx.font = font("700 46px");
-      ctx.fillText(value, cx + (i ? 28 : 0), top + 204);
+      ctx.font = font("700 42px");
+      ctx.fillText(value, cx + (i ? 28 : 0), top + 92);
     });
-  } else if (style === "card") {
-    ctx.font = font("700 48px");
-    const cardW = Math.min(W - 112, 760);
-    const titleLines = wrapCanvasText(ctx, title, cardW - 120).slice(0, 2);
-    const cardH = 150 + titleLines.length * 58;
-    const left = 56;
-    const top = H - cardH - 64;
+  };
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(left, top, cardW, cardH, 22);
+  if (style === "bar") {
+    const barH = 258;
+    const top = H - barH;
     ctx.fillStyle = "rgba(250, 248, 244, 0.96)";
-    ctx.fill();
-    ctx.clip();
+    ctx.fillRect(0, top, W, barH);
     ctx.fillStyle = accent;
-    ctx.fillRect(left, top, 10, cardH);
-    ctx.restore();
-
+    ctx.fillRect(0, top, W, 10);
+    ctx.fillStyle = "#20201e";
+    ctx.font = font("700 38px");
+    ctx.fillText(wrapCanvasText(ctx, `${title} — ${recipe.brewer}`, W - 112)[0], 56, top + 72);
+    drawStatCells(top + 104, barH - 134);
+  } else if (style === "top") {
+    const barH = 300;
+    ctx.fillStyle = "rgba(250, 248, 244, 0.96)";
+    ctx.fillRect(0, 0, W, barH);
+    ctx.fillStyle = accent;
+    ctx.fillRect(0, barH - 10, W, 10);
     ctx.fillStyle = "#486c63";
     ctx.font = font("800 24px");
-    ctx.fillText(byline.toUpperCase(), left + 44, top + 58);
+    ctx.fillText(byline.toUpperCase(), 56, 62);
     ctx.fillStyle = "#20201e";
-    ctx.font = font("700 48px");
-    titleLines.forEach((line, i) => ctx.fillText(line, left + 44, top + 122 + i * 58));
+    ctx.font = font("700 38px");
+    ctx.fillText(wrapCanvasText(ctx, title, W - 112)[0], 56, 118);
+    drawStatCells(150, 116);
+  } else if (style === "rail") {
+    const bandH = 322;
+    const top = H - bandH;
+    ctx.fillStyle = "rgba(250, 248, 244, 0.96)";
+    ctx.fillRect(0, top, W, bandH);
+    ctx.fillStyle = accent;
+    ctx.fillRect(0, top, W, 10);
+    ctx.fillStyle = "#20201e";
+    ctx.font = font("700 38px");
+    ctx.fillText(wrapCanvasText(ctx, title, W - 112)[0], 56, top + 70);
     ctx.fillStyle = "#6e6b66";
-    ctx.font = font("600 32px");
-    ctx.fillText(statLine, left + 44, top + cardH - 40);
+    ctx.font = font("600 26px");
+    ctx.fillText(byline, 56, top + 110);
+
+    const steps = recipe.timeline.slice(0, 6);
+    if (steps.length) {
+      const total = Math.max(totalTime(recipe.timeline), 1);
+      const left = 90;
+      const right = W - 90;
+      const lineY = top + 218;
+      ctx.strokeStyle = "#d8cfc3";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(left, lineY);
+      ctx.lineTo(right, lineY);
+      ctx.stroke();
+      ctx.textAlign = "center";
+      steps.forEach((step, i) => {
+        const start = eventStart(recipe.timeline, i);
+        const x = left + (start / total) * (right - left);
+        const isEnd = isDrawdownEvent(step) || step.range;
+        ctx.fillStyle = isEnd ? "#486c63" : "#d89b45";
+        ctx.beginPath();
+        ctx.arc(x, lineY, 13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#faf8f4";
+        ctx.lineWidth = 5;
+        ctx.stroke();
+        const num = targetNumber(step.target);
+        const label = step.target.trim() && num !== null ? `${num}g` : step.type.toLowerCase();
+        ctx.fillStyle = "#20201e";
+        ctx.font = font("800 24px");
+        ctx.fillText(label, x, lineY - 32);
+        ctx.fillStyle = "#6e6b66";
+        ctx.font = font("600 21px");
+        ctx.fillText(formatTime(start), x, lineY + 46);
+      });
+      ctx.textAlign = "left";
+    }
   } else {
     const gradTop = H * 0.5;
     const grad = ctx.createLinearGradient(0, H, 0, gradTop);
@@ -654,23 +703,23 @@ async function renderPhotoShareImage(
     ctx.fillStyle = grad;
     ctx.fillRect(0, gradTop, W, H - gradTop);
 
-    ctx.font = font("800 100px");
+    ctx.font = font("800 84px");
     const titleLines = wrapCanvasText(ctx, title, W - 112).slice(0, 2);
-    let y = H - 96 - titleLines.length * 108;
-
+    let y = H - 96 - titleLines.length * 92;
     ctx.fillStyle = "#e9c98a";
-    ctx.font = font("800 30px");
-    ctx.fillText(byline.toUpperCase(), 56, y - 26);
+    ctx.font = font("800 28px");
+    ctx.fillText(byline.toUpperCase(), 56, y - 24);
     ctx.fillStyle = "#ffffff";
-    ctx.font = font("800 100px");
+    ctx.font = font("800 84px");
     titleLines.forEach((line) => {
-      ctx.fillText(line, 56, y + 100 - 12);
-      y += 108;
+      ctx.fillText(line, 56, y + 74);
+      y += 92;
     });
     ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
-    ctx.font = font("600 40px");
+    ctx.font = font("600 38px");
     ctx.fillText(statLine, 56, H - 64);
   }
+
 
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
@@ -2029,7 +2078,8 @@ function RecipePage({
 
 const shareStyles: { key: ShareStyle; label: string }[] = [
   { key: "bar", label: "Stat bar" },
-  { key: "card", label: "Card" },
+  { key: "top", label: "Top bar" },
+  { key: "rail", label: "Timeline" },
   { key: "type", label: "Big type" },
 ];
 
@@ -2119,42 +2169,56 @@ function ShareSheet({ recipe, onClose }: { recipe: Recipe; onClose: () => void }
               <span>Add your photo</span>
               <input type="file" accept="image/*" onChange={onPickPhoto} hidden />
             </label>
-          ) : null}
+          ) : (
+            <div className="preview-actions">
+              <label className="preview-chip">
+                ↻ Change
+                <input type="file" accept="image/*" onChange={onPickPhoto} hidden />
+              </label>
+              <button
+                className="preview-chip round"
+                aria-label="Remove photo"
+                onClick={() => setPhoto(null)}
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
 
         {photo ? (
           <>
-            <div className="sheet-controls">
+            <p className="control-label">Style</p>
+            <div className="style-seg">
               {shareStyles.map(({ key, label }) => (
                 <button
                   key={key}
-                  className={style === key ? "style-chip is-active" : "style-chip"}
+                  className={style === key ? "style-opt on" : "style-opt"}
                   onClick={() => setStyle(key)}
                 >
-                  {label}
+                  <span className={`style-thumb t-${key}`} aria-hidden />
+                  <small>{label}</small>
                 </button>
               ))}
             </div>
-            <div className="sheet-controls">
-              <button
-                className={format === "story" ? "style-chip is-active" : "style-chip"}
-                onClick={() => setFormat("story")}
-              >
-                9:16
-              </button>
-              <button
-                className={format === "square" ? "style-chip is-active" : "style-chip"}
-                onClick={() => setFormat("square")}
-              >
-                1:1
-              </button>
-              <label className="style-chip photo-pick">
-                Change
-                <input type="file" accept="image/*" onChange={onPickPhoto} hidden />
-              </label>
-              <button className="style-chip" onClick={() => setPhoto(null)}>
-                Remove
-              </button>
+            <div className="format-row">
+              <p className="control-label" style={{ margin: 0 }}>Format</p>
+              <div className="format-toggle">
+                <button
+                  className={format === "story" ? "format-opt on" : "format-opt"}
+                  onClick={() => setFormat("story")}
+                >
+                  <span className="f-rect" aria-hidden />
+                  Story
+                </button>
+                <button
+                  className={format === "square" ? "format-opt on" : "format-opt"}
+                  onClick={() => setFormat("square")}
+                >
+                  <span className="f-rect sq" aria-hidden />
+                  Square
+                </button>
+              </div>
             </div>
           </>
         ) : (
