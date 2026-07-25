@@ -3139,3 +3139,229 @@ select {
 .brew-exit {
   color: #b3542f;
 }
+
+/* ===== Minimal cleanup pass =====
+   Three additions to the existing ramp, one accent (--teal), hierarchy from
+   size and space rather than a second typeface. No new palette. */
+
+:root {
+  --hairline: #f0ebe3;
+  --ink-3: #8d8a84;
+  --ink-4: #a8a49c;
+}
+
+/* --- Filter bar: buttons, not dropdowns --- */
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  padding: 14px 15px;
+  margin-bottom: 20px;
+}
+
+.filter-search {
+  width: 100%;
+}
+
+.filter-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.filter-label {
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.filter-pill {
+  background: var(--card);
+  border: 1px solid var(--rule-2);
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  min-height: 34px;
+  padding: 0 14px;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+  white-space: nowrap;
+}
+
+.filter-pill:hover {
+  border-color: var(--ink-4);
+  color: var(--ink);
+}
+
+.filter-pill.is-on {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bone);
+}
+
+.filter-pill:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+.filter-count {
+  opacity: 0.5;
+  margin-left: 2px;
+}
+
+.filter-clear {
+  align-self: flex-start;
+  color: var(--teal);
+  font-family: var(--sans);
+  font-size: 0.76rem;
+  font-weight: 500;
+  padding: 0;
+}
+
+.milk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .filter-row {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+}
+
+/* --- Card: single accent, fingerprint, quiet metadata --- */
+.recipe-card {
+  border: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
+  border-radius: 12px;
+}
+
+.recipe-card:hover,
+.recipe-card:focus-visible {
+  border-color: var(--rule-2);
+  border-left-color: var(--rule-2);
+  box-shadow: 0 6px 18px rgba(32, 32, 30, 0.07);
+  transform: none;
+}
+
+.recipe-card .rc-body {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding: 17px 18px 15px;
+}
+
+.rc-fingerprint {
+  color: var(--ink);
+  flex: 0 0 auto;
+}
+
+.rc-text {
+  min-width: 0;
+}
+
+.rc-meta-line {
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.11em;
+  margin: 0 0 7px;
+  text-transform: uppercase;
+}
+
+.recipe-card h3 {
+  font-family: var(--sans);
+  font-size: 1.24rem;
+  font-weight: 500;
+  letter-spacing: -0.011em;
+  line-height: 1.22;
+  margin: 0;
+  padding-right: 0;
+}
+
+.recipe-card .rc-bean {
+  color: var(--ink-2);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
+.recipe-card .recipe-stats {
+  border-top: 1px solid var(--hairline);
+  padding: 0 18px;
+}
+
+.recipe-card .recipe-stats div {
+  border-right: 0;
+  padding: 11px 0 13px;
+  text-align: left;
+}
+
+.recipe-card .recipe-stats span {
+  color: var(--ink-3);
+  font-size: 0.62rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+  text-transform: none;
+}
+
+.recipe-card .recipe-stats strong {
+  font-size: 1.05rem;
+  font-weight: 400;
+}
+
+.recipe-card .rc-foot {
+  padding: 0 12px 8px 18px;
+}
+
+/* --- Section heading: quieter, so titles are the loudest thing --- */
+.section-heading h2 {
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.section-heading p {
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+@media print {
+  .filter-bar,
+  .rc-foot {
+    display: none;
+  }
+
+  .recipe-card {
+    box-shadow: none;
+  }
+}

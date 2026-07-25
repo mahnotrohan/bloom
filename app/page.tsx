@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -11,6 +12,13 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import {
+  analyticsSession,
+  beaconBrewEvent,
+  trackBrewEvent,
+  type BrewEvent,
+  type BrewEventName,
+} from "./analytics";
 
 type Brewer =
   | "V60"
@@ -24,11 +32,15 @@ type Brewer =
   | "Other - Flatbed"
   | "Other - Immersion";
 
+type MilkFilter = "any" | "black" | "milk";
+
 type Grind = "Fine" | "Medium-Fine" | "Medium" | "Medium-Coarse" | "Coarse";
 type Agitation = "Gentle" | "Moderate" | "Vigorous";
 type Roast = "Light" | "Medium-Light" | "Medium" | "Medium-Dark" | "Dark";
-type StoredRecipe = Omit<Recipe, "roast"> & {
+type StoredRecipe = Omit<Recipe, "roast" | "milk"> & {
   roast?: Roast | Roast[];
+  // Absent on every recipe published before the milk field existed.
+  milk?: boolean;
   yield?: number;
   saveCount?: number;
 };
@@ -61,6 +73,9 @@ type Recipe = {
   pours: number;
   stirs: number;
   swirl: boolean;
+  // Whether the drink is finished with milk. Drives the library milk filter
+  // and fills the core of the brew fingerprint.
+  milk: boolean;
   creator: string;
   createdAt: string;
   timeline: TimelineEvent[];
@@ -122,6 +137,7 @@ const seedRecipes: Recipe[] = [
     pours: 4,
     stirs: 0,
     swirl: true,
+    milk: false,
     creator: "kurasu-lab",
     createdAt: "2026-07-12T10:00:00.000Z",
     timeline: [
@@ -150,6 +166,7 @@ const seedRecipes: Recipe[] = [
     pours: 1,
     stirs: 3,
     swirl: false,
+    milk: false,
     creator: "press-club",
     createdAt: "2026-07-15T09:30:00.000Z",
     timeline: [
@@ -177,6 +194,7 @@ const seedRecipes: Recipe[] = [
     pours: 2,
     stirs: 0,
     swirl: false,
+    milk: true,
     creator: "filter-house",
     createdAt: "2026-07-09T07:15:00.000Z",
     timeline: [
@@ -204,6 +222,7 @@ const blankDraft: Draft = {
   pours: 0,
   stirs: 0,
   swirl: false,
+  milk: false,
   creator: "",
   timeline: [
     event("Bloom", 0, 30, "45", false, false, ""),
@@ -885,6 +904,9 @@ function normalizeStoredRecipe(recipe: StoredRecipe) {
   const normalized = {
     ...recipe,
     roast: normalizeRoast(recipe.roast),
+    // Recipes published before the milk field existed have no value. South
+    // Indian filter is milk-based by default; everything else is assumed black.
+    milk: typeof recipe.milk === "boolean" ? recipe.milk : recipe.brewer === "SIF",
   };
   delete normalized.yield;
   delete normalized.saveCount;
@@ -933,6 +955,7 @@ export default function Home() {
   const [activeId, setActiveId] = useState(seedRecipes[0].id);
   const [search, setSearch] = useState("");
   const [brewerFilter, setBrewerFilter] = useState("All brewers");
+  const [milkFilter, setMilkFilter] = useState<MilkFilter>("any");
   const [publishMessage, setPublishMessage] = useState("");
   const [justPublishedId, setJustPublishedId] = useState("");
   const [shareId, setShareId] = useState("");
@@ -1004,10 +1027,13 @@ export default function Home() {
           recipe.bean.toLowerCase().includes(normalizedSearch);
         const matchesBrewer =
           brewerFilter === "All brewers" || recipe.brewer === brewerFilter;
-        return matchesSearch && matchesBrewer;
+        const matchesMilk =
+          milkFilter === "any" ||
+          (milkFilter === "milk" ? recipe.milk : !recipe.milk);
+        return matchesSearch && matchesBrewer && matchesMilk;
       })
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-  }, [recipes, search, brewerFilter]);
+  }, [recipes, search, brewerFilter, milkFilter]);
 
   function go(nextView: string, id?: string) {
     window.location.hash = id ? `#/${nextView}/${id}` : `#/${nextView}`;
@@ -1068,10 +1094,13 @@ export default function Home() {
       ) : (
         <Library
           recipes={filteredRecipes}
+          allRecipes={recipes}
           search={search}
           brewerFilter={brewerFilter}
+          milkFilter={milkFilter}
           onSearch={setSearch}
           onBrewerFilter={setBrewerFilter}
+          onMilkFilter={setMilkFilter}
           onOpen={(id) => go("recipe", id)}
           onCreate={startNewRecipe}
           onShare={(id) => setShareId(id)}
@@ -1229,23 +1258,51 @@ function AboutPage({ onCreate, onBrowse }: { onCreate: () => void; onBrowse: () 
 
 function Library({
   recipes,
+  allRecipes,
   search,
   brewerFilter,
+  milkFilter,
   onSearch,
   onBrewerFilter,
+  onMilkFilter,
   onOpen,
   onCreate,
   onShare,
 }: {
   recipes: Recipe[];
+  allRecipes: Recipe[];
   search: string;
   brewerFilter: string;
+  milkFilter: MilkFilter;
   onSearch: (value: string) => void;
   onBrewerFilter: (value: string) => void;
+  onMilkFilter: (value: MilkFilter) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
   onShare: (id: string) => void;
 }) {
+  // Counts come off the unfiltered set so the numbers never move as you filter.
+  const brewerCounts = new Map<string, number>();
+  for (const recipe of allRecipes) {
+    brewerCounts.set(recipe.brewer, (brewerCounts.get(recipe.brewer) ?? 0) + 1);
+  }
+  const milkCount = allRecipes.filter((recipe) => recipe.milk).length;
+  const blackCount = allRecipes.length - milkCount;
+
+  // Only offer brewers that someone has actually published, plus whatever is
+  // currently selected so the active button can never vanish.
+  const brewerOptions = brewers.filter(
+    (brewer) => brewerCounts.has(brewer) || brewer === brewerFilter,
+  );
+  const isFiltered =
+    Boolean(search.trim()) || brewerFilter !== "All brewers" || milkFilter !== "any";
+
+  const milkOptions: { value: MilkFilter; label: string; count: number }[] = [
+    { value: "any", label: "Any", count: allRecipes.length },
+    { value: "black", label: "No milk", count: blackCount },
+    { value: "milk", label: "With milk", count: milkCount },
+  ];
+
   return (
     <>
       <section className="bloom-hero">
@@ -1265,30 +1322,74 @@ function Library({
           <div>
             <h2>Library</h2>
           </div>
-          <p>{recipes.length} recipes</p>
+          <p>
+            {isFiltered
+              ? `${recipes.length} of ${allRecipes.length} recipes`
+              : `${recipes.length} recipes`}
+          </p>
         </div>
 
         <div className="filter-bar">
-          <label>
-            Search
-            <input
-              value={search}
-              onChange={(event) => onSearch(event.target.value)}
-              placeholder="Title, creator, or coffee"
-            />
-          </label>
-          <label>
-            Brewer
-            <select
-              value={brewerFilter}
-              onChange={(event) => onBrewerFilter(event.target.value)}
-            >
-              <option>All brewers</option>
-              {brewers.map((brewer) => (
-                <option key={brewer}>{brewer}</option>
+          <input
+            className="filter-search"
+            value={search}
+            onChange={(event) => onSearch(event.target.value)}
+            placeholder="Search title, creator, or coffee"
+            aria-label="Search recipes"
+          />
+
+          <div className="filter-row" role="group" aria-label="Filter by brewer">
+            <span className="filter-label">Brewer</span>
+            <div className="filter-pills">
+              <button
+                className={`filter-pill${brewerFilter === "All brewers" ? " is-on" : ""}`}
+                aria-pressed={brewerFilter === "All brewers"}
+                onClick={() => onBrewerFilter("All brewers")}
+              >
+                All <span className="filter-count">{allRecipes.length}</span>
+              </button>
+              {brewerOptions.map((brewer) => (
+                <button
+                  key={brewer}
+                  className={`filter-pill${brewerFilter === brewer ? " is-on" : ""}`}
+                  aria-pressed={brewerFilter === brewer}
+                  onClick={() => onBrewerFilter(brewer)}
+                >
+                  {brewer}{" "}
+                  <span className="filter-count">{brewerCounts.get(brewer) ?? 0}</span>
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
+
+          <div className="filter-row" role="group" aria-label="Filter by milk">
+            <span className="filter-label">Milk</span>
+            <div className="filter-pills">
+              {milkOptions.map((option) => (
+                <button
+                  key={option.value}
+                  className={`filter-pill${milkFilter === option.value ? " is-on" : ""}`}
+                  aria-pressed={milkFilter === option.value}
+                  onClick={() => onMilkFilter(option.value)}
+                >
+                  {option.label} <span className="filter-count">{option.count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {isFiltered ? (
+            <button
+              className="filter-clear"
+              onClick={() => {
+                onSearch("");
+                onBrewerFilter("All brewers");
+                onMilkFilter("any");
+              }}
+            >
+              Clear filters
+            </button>
+          ) : null}
         </div>
 
         <div className="recipe-grid">
@@ -1315,7 +1416,8 @@ function FeaturedSheet({ recipe }: { recipe: Recipe }) {
   );
 }
 
-// One accent color per brewer, used for the card's left edge and brewer label.
+// Per-brewer colors, used only when drawing share images to canvas. The UI
+// itself is single-accent — see BrewFingerprint.
 const brewerAccent: Record<string, string> = {
   "V60": "#c65f3f",
   "French Press": "#7a5230",
@@ -1329,93 +1431,68 @@ const brewerAccent: Record<string, string> = {
   "Other - Immersion": "#8a6f5a",
 };
 
-function accentForBrewer(brewer: string) {
-  return brewerAccent[brewer] ?? "var(--teal)";
-}
-
 function displayCreator(creator: string) {
   return creator.trim().replace(/^by\s+/i, "");
 }
 
-function BrewerIcon({ brewer }: { brewer: string }) {
-  const common = {
-    className: "brewer-icon",
-    width: 26,
-    height: 26,
-    fill: "none",
-    stroke: "currentColor",
-    strokeLinejoin: "round" as const,
-    strokeLinecap: "round" as const,
-    "aria-hidden": true,
-  };
+// The brew fingerprint: concentric rings generated from the recipe's own
+// numbers, so no two recipes draw the same mark.
+//   ring count  <- pour steps (clamped 3..6)
+//   band index  <- brew temperature, so hotter brews accent further out
+//   core fill   <- milk
+// Drawn in one ink weight with a single teal band; no per-brewer colors.
+function fingerprintRings(recipe: Recipe) {
+  const pours = recipe.timeline.filter((step) => {
+    const type = step.type.toLowerCase();
+    return type === "pour" || type === "bloom";
+  }).length;
+  const count = Math.min(6, Math.max(3, pours || 3));
 
-  switch (brewer) {
-    case "V60":
-      return (
-        <svg {...common} viewBox="0 0 24 24" strokeWidth={1.7}>
-          <path d="M6 8h12l-6 10z" />
-        </svg>
-      );
-    case "Cafec Deep 27":
-      return (
-        <svg {...common} viewBox="0 0 24 24" strokeWidth={1.7}>
-          <path d="M7 7h10l-5 13z" />
-        </svg>
-      );
-    case "Origami Dripper":
-      return (
-        <svg {...common} viewBox="0 0 32 32" strokeWidth={1.5}>
-          <path d="M5 9l3 2 3-2 3 2 3-2 3 2 3-2 3 2" />
-          <path d="M5 9l8 13h6l8-13" />
-          <path d="M11 11l3 11M21 11l-3 11M16 11v11" />
-        </svg>
-      );
-    case "Kalita Wave":
-      return (
-        <svg {...common} viewBox="0 0 32 32" strokeWidth={1.6}>
-          <path d="M6 10h20l-3.5 11h-13z" />
-          <path d="M11.5 21q1.3 1.4 2.6 0t2.6 0 2.6 0" />
-        </svg>
-      );
-    case "French Press":
-      return (
-        <svg {...common} viewBox="0 0 32 32" strokeWidth={1.6}>
-          <rect x="9" y="10" width="12" height="16" rx="2" />
-          <path d="M8 9.5h14" />
-          <path d="M15 9.5V4" />
-          <circle cx="15" cy="3.4" r="1.5" />
-          <path d="M9 6.5l-2-1v3" />
-          <path d="M21 14q4 0 4 4t-4 4" />
-        </svg>
-      );
-    case "AeroPress":
-      return (
-        <svg {...common} viewBox="0 0 32 32" strokeWidth={1.5}>
-          <rect x="9.5" y="4" width="13" height="2.6" rx="1.2" />
-          <rect x="12" y="6.6" width="8" height="6.4" rx="0.8" />
-          <path d="M10.5 13h11v8.5l-1 2.6h-9l-1-2.6z" />
-          <path d="M10.5 13q5.5-1.6 11 0" />
-        </svg>
-      );
-    case "SIF":
-      return (
-        <svg {...common} viewBox="0 0 32 32" strokeWidth={1.6}>
-          <path d="M11 16h10v8a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2z" />
-          <rect x="11" y="10" width="10" height="6" />
-          <path d="M11 10q5-4 10 0" />
-          <path d="M16 7V5" />
-          <circle cx="16" cy="4" r="1.1" />
-        </svg>
-      );
-    default:
-      // Other - Conical / Flatbed / Immersion, and any unknown brewer.
-      return (
-        <svg {...common} viewBox="0 0 32 32" strokeWidth={1.6}>
-          <path d="M9 10h11v10a4 4 0 0 1-4 4h-3a4 4 0 0 1-4-4z" />
-          <path d="M20 12q4 0 4 3.5t-4 3.5" />
-        </svg>
-      );
-  }
+  // 80..100 C maps across the available rings; anything outside clamps.
+  const temp = recipe.temp || 93;
+  const warmth = Math.min(1, Math.max(0, (temp - 80) / 20));
+  const bandIndex = Math.min(count - 1, Math.max(1, Math.round(warmth * (count - 1))));
+
+  return { count, bandIndex };
+}
+
+function BrewFingerprint({ recipe, size = 56 }: { recipe: Recipe; size?: number }) {
+  const { count, bandIndex } = fingerprintRings(recipe);
+  const center = size / 2;
+  const step = (center - 3) / (count + 0.4);
+  const rings = Array.from({ length: count }, (_, index) => ({
+    r: step * (index + 1),
+    isBand: index === bandIndex,
+    isOuter: index === count - 1,
+  }));
+  const scale = size / 56;
+
+  return (
+    <svg
+      className="rc-fingerprint"
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      role="img"
+      aria-label={`Brew fingerprint: ${count} pours, ${recipe.milk ? "with milk" : "no milk"}`}
+    >
+      {recipe.milk ? (
+        <circle cx={center} cy={center} r={step * 0.9} fill="var(--rule)" />
+      ) : null}
+      {rings.map((ring) => (
+        <circle
+          key={ring.r}
+          cx={center}
+          cy={center}
+          r={ring.r}
+          fill="none"
+          stroke={ring.isBand ? "var(--teal)" : ring.isOuter ? "var(--ink-4)" : "var(--ink)"}
+          strokeWidth={ring.isBand ? 2.2 * scale : 1 * scale}
+          strokeDasharray={ring.isOuter && !ring.isBand ? `${2.5 * scale} ${4 * scale}` : undefined}
+        />
+      ))}
+    </svg>
+  );
 }
 
 function RecipeCard({
@@ -1435,27 +1512,44 @@ function RecipeCard({
   }
 
   const author = displayCreator(recipe.creator);
-  const accent = accentForBrewer(recipe.brewer);
+  // One quiet metadata line instead of coloured pills plus a separate bean and
+  // creator line.
+  const metaLine = [
+    recipe.brewer,
+    recipe.milk ? "with milk" : "no milk",
+    roastLabel(recipe.roast) ? `${roastLabel(recipe.roast).toLowerCase()} roast` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <article
       className="recipe-card"
-      style={{ ["--accent" as string]: accent } as CSSProperties}
       role="button"
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={handleCardKeyDown}
     >
-      <BrewerIcon brewer={recipe.brewer} />
       <div className="rc-body">
-        <div className="card-meta">
-          <span>{recipe.brewer}</span>
-          {recipe.ratio ? <span>{ratioLabel(recipe.ratio)}</span> : null}
+        <BrewFingerprint recipe={recipe} />
+        <div className="rc-text">
+          <p className="rc-meta-line">{metaLine}</p>
+          <h3>{recipeTitle(recipe)}</h3>
+          {recipe.bean.trim() ? (
+            <p className="rc-bean">
+              {recipe.bean}
+              {author ? ` · ${author}` : ""}
+            </p>
+          ) : author ? (
+            <p className="rc-bean">{author}</p>
+          ) : null}
         </div>
-        <h3>{recipeTitle(recipe)}</h3>
-        {recipe.bean.trim() ? <p className="rc-bean">{recipe.bean}</p> : null}
       </div>
       <div className="recipe-stats">
+        <div>
+          <span>Ratio</span>
+          <strong>{recipe.ratio ? ratioLabel(recipe.ratio) : "—"}</strong>
+        </div>
         <div>
           <span>Dose</span>
           <strong>{recipe.dose ? `${recipe.dose}g` : "—"}</strong>
@@ -1470,7 +1564,7 @@ function RecipeCard({
         </div>
       </div>
       <div className="rc-foot">
-        {author ? <p className="creator-line">by {author}</p> : <span />}
+        <span />
         {onShare ? (
           <button
             className="card-share"
@@ -1781,6 +1875,28 @@ function Builder({
       {draft.dose > 0 && draft.water > 0 ? (
         <p className="ratio-hint">Ratio {ratioLabel(roundedRatio(draft.water, draft.dose))}</p>
       ) : null}
+
+      <div className="milk-field" role="group" aria-label="Milk">
+        <span className="field-label" style={{ margin: 0 }}>
+          Milk
+        </span>
+        <div className="filter-pills">
+          <button
+            className={`filter-pill${draft.milk ? "" : " is-on"}`}
+            aria-pressed={!draft.milk}
+            onClick={() => setField("milk", false)}
+          >
+            No milk
+          </button>
+          <button
+            className={`filter-pill${draft.milk ? " is-on" : ""}`}
+            aria-pressed={draft.milk}
+            onClick={() => setField("milk", true)}
+          >
+            With milk
+          </button>
+        </div>
+      </div>
 
       <div className="details-block">
         <p className="field-label">
@@ -2231,6 +2347,70 @@ function BrewMode({
   const factor = recipe.dose > 0 ? dose / recipe.dose : 1;
   const scaledWater = recipe.water > 0 ? Math.round(recipe.water * factor) : 0;
 
+  // --- Drop-off tracking ---
+  // Two data points per brew: one on start, one terminal. The terminal event
+  // carries the furthest step reached, so the whole drop-off curve is derivable
+  // without emitting an event per step.
+  const furthestStepRef = useRef(-1);
+  const terminalSentRef = useRef(false);
+  // Mirrors live state so the unload handlers, which run long after render,
+  // read current values without re-subscribing on every tick.
+  const liveRef = useRef({ elapsed: 0, phase: "ready" as typeof phase, dose });
+  useEffect(() => {
+    liveRef.current = { elapsed, phase, dose };
+  }, [elapsed, phase, dose]);
+
+  const buildBrewEvent = useCallback(
+    (event: BrewEventName): BrewEvent => {
+      const live = liveRef.current;
+      const stepIndex = furthestStepRef.current;
+      return {
+        event,
+        recipeId: recipe.id,
+        brewer: recipe.brewer,
+        milk: recipe.milk,
+        stepType: stepIndex >= 0 ? (steps[stepIndex]?.type ?? "") : "",
+        session: analyticsSession(),
+        elapsed: Math.round(live.elapsed),
+        stepIndex,
+        totalSteps: steps.length,
+        progress: total > 0 ? Math.min(1, live.elapsed / total) : 0,
+        dose: live.dose,
+      };
+    },
+    [recipe.id, recipe.brewer, recipe.milk, steps, total],
+  );
+
+  // Fires once per brew, whichever way the brew ends.
+  const sendTerminal = useCallback(
+    (event: Extract<BrewEventName, "brew_complete" | "brew_abandon">, beacon = false) => {
+      if (terminalSentRef.current) return;
+      terminalSentRef.current = true;
+      const payload = buildBrewEvent(event);
+      if (beacon) beaconBrewEvent(payload);
+      else trackBrewEvent(payload);
+    },
+    [buildBrewEvent],
+  );
+
+  // Closing the tab mid-brew is the most common abandonment and never reaches
+  // onExit, so it needs its own listener. pagehide fires where unload does not
+  // on iOS Safari.
+  useEffect(() => {
+    if (phase !== "running") return;
+    const onHide = () => sendTerminal("brew_abandon", true);
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
+  }, [phase, sendTerminal]);
+
+  // Unmounting while still running means they backed out of brew mode.
+  useEffect(
+    () => () => {
+      if (liveRef.current.phase === "running") sendTerminal("brew_abandon");
+    },
+    [sendTerminal],
+  );
+
   const scaledTarget = (target: string) => {
     const n = targetNumber(target);
     return n === null ? null : Math.round(n * factor);
@@ -2263,6 +2443,8 @@ function BrewMode({
     if (phase !== "running") return;
     if (elapsed >= total) {
       setPhase("done");
+      furthestStepRef.current = Math.max(furthestStepRef.current, steps.length - 1);
+      sendTerminal("brew_complete");
       try {
         navigator.vibrate?.([200, 100, 200]);
       } catch {
@@ -2272,6 +2454,7 @@ function BrewMode({
     }
     if (currentIndex >= 0 && currentIndex !== lastStepRef.current) {
       lastStepRef.current = currentIndex;
+      furthestStepRef.current = Math.max(furthestStepRef.current, currentIndex);
       setCueIndex(currentIndex);
       try {
         navigator.vibrate?.(200);
@@ -2281,7 +2464,7 @@ function BrewMode({
       const t = window.setTimeout(() => setCueIndex(-1), 1300);
       return () => window.clearTimeout(t);
     }
-  }, [currentIndex, elapsed, phase, total]);
+  }, [currentIndex, elapsed, phase, total, steps.length, sendTerminal]);
 
   // Keep the screen awake while brewing.
   useEffect(() => {
@@ -2314,6 +2497,11 @@ function BrewMode({
     baseRef.current = 0;
     startRef.current = Date.now();
     lastStepRef.current = -1;
+    // Reset drop-off state so "Brew again" is measured as a fresh brew.
+    furthestStepRef.current = -1;
+    terminalSentRef.current = false;
+    liveRef.current = { elapsed: 0, phase: "running", dose };
+    trackBrewEvent(buildBrewEvent("brew_start"));
     setElapsed(0);
     setPaused(false);
     setPhase("running");
@@ -2508,6 +2696,7 @@ function BrewMode({
 
 function RecipeHeader({ recipe, compact = false }: { recipe: Recipe; compact?: boolean }) {
   const grindItems = [
+    recipe.milk ? "With milk" : "No milk",
     roastLabel(recipe.roast) ? `${roastLabel(recipe.roast)} roast` : "",
     recipe.grind,
     recipe.grinder.trim(),

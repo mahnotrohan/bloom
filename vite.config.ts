@@ -56,6 +56,15 @@ const localBindingConfig = {
         },
       ]
     : [],
+  // Workers Analytics Engine. The dataset is created on first write — there is
+  // nothing to provision in the dashboard. See docs/analytics.md for the
+  // column layout and the drop-off queries.
+  analytics_engine_datasets: [
+    {
+      binding: "ANALYTICS",
+      dataset: "bloom_events",
+    },
+  ],
 };
 
 export default defineConfig({
