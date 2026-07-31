@@ -12,7 +12,14 @@
    ========================================================================== */
 
 import { useMemo, useState } from "react";
-import { grinderNames, translateGrind, type GrindSource } from "../../lib/grind";
+import {
+  grinderNames,
+  translateGrind,
+  micronsForRecipe,
+  bandFor,
+  type GrindSource,
+} from "../../lib/grind";
+import { GrindSwatch, spreadFor } from "../../lib/grind-canvas";
 import { useMyGrinder } from "../../lib/use-my-grinder";
 
 const ink = "#2c2c2a";
@@ -38,6 +45,10 @@ export default function RecipeTools({
     () => (myGrinder ? translateGrind(recipe, myGrinder) : null),
     [recipe, myGrinder],
   );
+
+  // Independent of the grinder — microns belong to the recipe, so the swatch
+  // renders for a visitor who has never set anything up.
+  const microns = useMemo(() => micronsForRecipe(recipe), [recipe]);
 
   async function copy(kind: "text" | "link") {
     const payload =
@@ -78,16 +89,33 @@ export default function RecipeTools({
           Grind
         </div>
 
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 20, fontWeight: 500, color: ink }}>
-            {translation?.ok ? translation.display : published || "Not specified"}
-          </span>
-          {translation?.ok ? (
-            <span style={{ fontSize: 13, color: muted }}>
-              on your {translation.grinderName}
-              {published ? ` · published as ${published}` : ""}
-            </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          {/* A first-time visitor arriving from a shared link has no idea what
+              "21 clicks" means. The picture and the household reference do. */}
+          {microns ? (
+            <GrindSwatch
+              microns={microns.mid}
+              width={124}
+              height={70}
+              spread={spreadFor(translation?.confidence ?? microns.confidence)}
+            />
           ) : null}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 19, fontWeight: 500, color: ink }}>
+              {translation?.ok ? translation.display : published || "Not specified"}
+            </div>
+            {translation?.ok ? (
+              <div style={{ fontSize: 12, color: muted, marginTop: 3 }}>
+                on your {translation.grinderName}
+                {published ? ` · published as ${published}` : ""}
+              </div>
+            ) : null}
+            {microns ? (
+              <div style={{ fontSize: 12, color: soft, marginTop: 5 }}>
+                ≈ {microns.mid} µm — like {bandFor(microns.mid).like}
+              </div>
+            ) : null}
+          </div>
         </div>
 
         <label

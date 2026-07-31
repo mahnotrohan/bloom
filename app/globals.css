@@ -4205,8 +4205,11 @@ select {
   text-decoration: underline;
 }
 
+/* Brew mode sits on --oat, i.e. a LIGHT surface, despite feeling like a
+   full-screen "mode". An earlier version used translucent white borders here,
+   which were invisible against it. Use the normal rules. */
 .taste-loop {
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  border-top: 1px solid var(--rule);
   margin: 22px 0 18px;
   padding-top: 18px;
   text-align: center;
@@ -4214,10 +4217,10 @@ select {
 }
 
 .taste-prompt {
+  color: var(--ink-2);
   display: block;
   font-size: 0.92rem;
   margin-bottom: 12px;
-  opacity: 0.75;
 }
 
 .taste-options {
@@ -4229,10 +4232,10 @@ select {
 
 .taste-options button,
 .taste-result .ghost-button {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: var(--card);
+  border: 1px solid var(--rule-2);
   border-radius: 999px;
-  color: inherit;
+  color: var(--ink);
   cursor: pointer;
   font-family: var(--sans);
   font-size: 0.85rem;
@@ -4241,7 +4244,7 @@ select {
 }
 
 .taste-options button:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bone);
 }
 
 .taste-result {
@@ -4250,10 +4253,10 @@ select {
 }
 
 .taste-diagnosis {
+  color: var(--ink-2);
   display: block;
   font-size: 0.72rem;
   letter-spacing: 0.14em;
-  opacity: 0.6;
   text-transform: uppercase;
 }
 
@@ -4265,10 +4268,10 @@ select {
 }
 
 .taste-result p {
+  color: var(--ink-2);
   font-size: 0.88rem;
   line-height: 1.55;
   margin-bottom: 14px;
-  opacity: 0.8;
 }
 
 @media (max-width: 640px) {
@@ -4356,19 +4359,8 @@ select {
 }
 
 /* Grind line on the brew-ready screen. */
-.brew-grind {
-  font-size: 0.95rem;
-  margin: 14px 0 0;
-  opacity: 0.85;
-}
-
-.brew-grind strong {
-  font-weight: 500;
-}
-
-.brew-grind span {
-  opacity: 0.65;
-}
+/* .brew-grind is styled with the swatch further down, where the card layout is
+   defined. Nothing needed here. */
 
 /* Kept visible on mobile — phones are where brewing actually happens, so this is
    the last thing to drop from the masthead. It shrinks instead. */
@@ -4381,3 +4373,91 @@ select {
     padding-left: 9px;
   }
 }
+
+/* Grind swatch — a generated bed of grounds at the recipe's micron value. Sits
+   beside the number so the picture and the text come from the same source. */
+.grind-swatch {
+  background: #efe9df;
+  border-radius: 7px;
+  display: block;
+  flex: 0 0 auto;
+}
+
+.translate-lead {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  min-width: 0;
+}
+
+.grind-swatch-link {
+  border-radius: 7px;
+  display: block;
+  flex: 0 0 auto;
+  position: relative;
+  text-decoration: none;
+}
+
+.grind-swatch-zoom {
+  background: rgba(32, 32, 30, 0.78);
+  border-radius: 4px;
+  bottom: 5px;
+  color: #fbfaf8;
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  opacity: 0;
+  padding: 2px 6px;
+  position: absolute;
+  right: 5px;
+  text-transform: uppercase;
+  transition: opacity 140ms ease;
+}
+
+.grind-swatch-link:hover .grind-swatch-zoom,
+.grind-swatch-link:focus-visible .grind-swatch-zoom {
+  opacity: 1;
+}
+
+/* Always legible on touch, where there is no hover to reveal it. */
+@media (hover: none) {
+  .grind-swatch-zoom {
+    opacity: 1;
+  }
+}
+
+.brew-grind {
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  display: flex;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 10px;
+  text-align: left;
+}
+
+.brew-grind-value {
+  color: var(--ink);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.brew-grind-value strong {
+  font-weight: 500;
+}
+
+.brew-grind-sub {
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  margin: 2px 0 0;
+}
+
+@media (max-width: 480px) {
+  .translate-lead {
+    gap: 11px;
+  }
+}
+/* Deliberately no responsive width on .grind-swatch: the canvas bitmap is drawn
+   at its logical size, so scaling it with CSS would blur and distort the
+   particles. Pass a smaller `width` prop instead if a surface needs one. */

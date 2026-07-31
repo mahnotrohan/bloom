@@ -24,11 +24,14 @@ import GrindGuide from "./grind-guide";
 import {
   grinderNames,
   translateGrind,
+  micronsForRecipe,
+  bandFor,
   tasteAdvice,
   tasteVerdicts,
   untranslatableReason,
   type Verdict,
 } from "./lib/grind";
+import { GrindSwatch, spreadFor } from "./lib/grind-canvas";
 import { useMyGrinder } from "./lib/use-my-grinder";
 
 type Brewer =
@@ -3147,17 +3150,14 @@ function BrewMode({
 /** Grind line on the brew-ready screen, in the reader's units where possible. */
 function BrewGrind({ recipe }: { recipe: Recipe }) {
   const [myGrinder] = useMyGrinder();
-  const translation = myGrinder
-    ? translateGrind(
-        {
-          brewer: recipe.brewer,
-          grind: recipe.grind,
-          grinder: recipe.grinder,
-          clicks: recipe.clicks,
-        },
-        myGrinder,
-      )
-    : null;
+  const source = {
+    brewer: recipe.brewer,
+    grind: recipe.grind,
+    grinder: recipe.grinder,
+    clicks: recipe.clicks,
+  };
+  const translation = myGrinder ? translateGrind(source, myGrinder) : null;
+  const microns = micronsForRecipe(source);
 
   const published = recipe.grinder.trim() && recipe.clicks.trim()
     ? `${recipe.clicks.trim()} on a ${recipe.grinder.trim()}`
@@ -3166,11 +3166,25 @@ function BrewGrind({ recipe }: { recipe: Recipe }) {
   if (!translation?.ok && !published) return null;
 
   return (
-    <p className="brew-grind">
-      Grind{" "}
-      <strong>{translation?.ok ? translation.display : published}</strong>
-      {translation?.ok ? <span> on your {translation.grinderName}</span> : null}
-    </p>
+    <div className="brew-grind">
+      {microns ? (
+        <GrindSwatch
+          microns={microns.mid}
+          width={104}
+          height={60}
+          spread={spreadFor(translation?.confidence ?? microns.confidence)}
+        />
+      ) : null}
+      <div>
+        <p className="brew-grind-value">
+          Grind <strong>{translation?.ok ? translation.display : published}</strong>
+        </p>
+        <p className="brew-grind-sub">
+          {translation?.ok ? `on your ${translation.grinderName}` : "as published"}
+          {microns ? ` · like ${bandFor(microns.mid).like}` : ""}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -3264,21 +3278,24 @@ function GrindTranslation({ recipe }: { recipe: Recipe }) {
     ? `${recipe.clicks.trim()} on a ${recipe.grinder.trim()}`
     : recipe.grind || "";
 
-  const translation = useMemo(
-    () =>
-      myGrinder
-        ? translateGrind(
-            {
-              brewer: recipe.brewer,
-              grind: recipe.grind,
-              grinder: recipe.grinder,
-              clicks: recipe.clicks,
-            },
-            myGrinder,
-          )
-        : null,
-    [recipe.brewer, recipe.grind, recipe.grinder, recipe.clicks, myGrinder],
+  const source = useMemo(
+    () => ({
+      brewer: recipe.brewer,
+      grind: recipe.grind,
+      grinder: recipe.grinder,
+      clicks: recipe.clicks,
+    }),
+    [recipe.brewer, recipe.grind, recipe.grinder, recipe.clicks],
   );
+
+  const translation = useMemo(
+    () => (myGrinder ? translateGrind(source, myGrinder) : null),
+    [source, myGrinder],
+  );
+
+  // The swatch doesn't need a grinder — microns are the recipe's own property, so
+  // the picture renders even before anyone has set up their gear.
+  const microns = useMemo(() => micronsForRecipe(source), [source]);
 
   // Nothing to translate and nothing published — don't show an empty panel.
   if (!published && !translation?.ok) return null;
@@ -3289,15 +3306,37 @@ function GrindTranslation({ recipe }: { recipe: Recipe }) {
   return (
     <section className="translate-panel">
       <div className="translate-row">
-        <div className="translate-value">
-          <span className="translate-label">Grind</span>
-          <strong>{translation?.ok ? translation.display : published || "Not specified"}</strong>
-          {translation?.ok && !sameGrinder ? (
-            <span className="translate-sub">
-              on your {translation.grinderName}
-              {published ? ` · published as ${published}` : ""}
-            </span>
+        <div className="translate-lead">
+          {/* A picture of the grounds, derived from the same micron value as the
+              text. Tapping opens the guide at this size, where 1:1 lives. */}
+          {microns ? (
+            <a
+              className="grind-swatch-link"
+              href={`#/grind/${microns.mid}`}
+              aria-label={`Inspect this grind size in the grind guide — roughly ${microns.mid} microns`}
+            >
+              <GrindSwatch
+                microns={microns.mid}
+                spread={spreadFor(translation?.confidence ?? microns.confidence)}
+              />
+              <span className="grind-swatch-zoom">Inspect</span>
+            </a>
           ) : null}
+          <div className="translate-value">
+            <span className="translate-label">Grind</span>
+            <strong>{translation?.ok ? translation.display : published || "Not specified"}</strong>
+            {translation?.ok && !sameGrinder ? (
+              <span className="translate-sub">
+                on your {translation.grinderName}
+                {published ? ` · published as ${published}` : ""}
+              </span>
+            ) : null}
+            {microns ? (
+              <span className="translate-sub">
+                ≈ {microns.mid} µm — like {bandFor(microns.mid).like}
+              </span>
+            ) : null}
+          </div>
         </div>
         <button
           className="translate-toggle"

@@ -194,6 +194,34 @@ server snapshot is always `""`), and keeps every component in sync so choosing a
 grinder on one surface re-translates the others immediately. Don't replace it
 with a `useState` + `useEffect` pair — lint will fail and hydration will warn.
 
+## The grind swatch
+
+`app/lib/grind-canvas.tsx` draws the grounds. The particle field and canvas used
+to be private to `grind-guide.tsx`; they moved here so the recipe panel, the
+brew-ready screen and `/r/<id>` can render the same bed. `GrindCanvas` is the
+guide's full-width slider stage; `GrindSwatch` is the fixed-size sample.
+
+Generated, not photographed — a photo can't render a continuous value, can't be
+shown at true 1:1 for comparison against real grounds, and without a reference
+object in frame 600 µm and 700 µm are indistinguishable anyway.
+
+Three things in `paintGrind` are load-bearing and were each a bug first:
+
+- **The minimum particle count scales with bed area** (`bedArea / 4200`). A hard
+  floor of 40 is right for the guide's ~640×260 stage but produced *295 %*
+  coverage in a 124×70 swatch — a solid mat where coarse and fine looked
+  identical. The divisor is chosen so the big stage still floors at 40.
+- **Positions come from an R2 low-discrepancy sequence, not `rand()`.** The
+  renderer draws the first N particles of a fixed pool, and N is as low as 6 for
+  a coarse swatch. Random positions clump at that size and leave half the bed
+  empty; any prefix of R2 is evenly spread.
+- **Spread widens with lower `confidence`** (`spreadFor`). A blade grinder and a
+  Comandante at the same median would otherwise look identical, which flatters
+  the blade grinder. The picture should tell the same truth as the caveats.
+
+Don't scale `.grind-swatch` with CSS — the bitmap is drawn at its logical size,
+so CSS scaling blurs it. Pass a smaller `width` prop instead.
+
 `TasteLoop` on the brew-done screen changes **one variable at a time** on
 purpose. Changing grind, temperature and ratio together is the most common
 home-brewing mistake and teaches nothing. Grind moves are expressed in the
