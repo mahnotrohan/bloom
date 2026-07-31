@@ -4262,3 +4262,103 @@ select {
     align-self: flex-start;
   }
 }
+
+/* Grinder picker in the masthead — the discoverable home for the setting, and
+   the confirmation that it stuck. Native select kept for mobile ergonomics; the
+   visible label is the shortened model name. */
+.my-grinder-picker {
+  align-items: center;
+  border: 1px solid var(--rule-2);
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 6px;
+  padding: 0 4px 0 11px;
+  position: relative;
+  transition: background 140ms ease;
+}
+
+.my-grinder-picker:hover {
+  background: var(--bone);
+}
+
+.my-grinder-label {
+  color: var(--ink-2);
+  font-size: 0.76rem;
+  max-width: 118px;
+  overflow: hidden;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.my-grinder-picker select {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: transparent;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 0.76rem;
+  height: 30px;
+  inset: 0;
+  opacity: 0;
+  position: absolute;
+  width: 100%;
+}
+
+.my-grinder-picker::after {
+  color: var(--ink-2);
+  content: "▾";
+  font-size: 0.62rem;
+  padding-right: 8px;
+  pointer-events: none;
+}
+
+/* Translated grind on a library card. Only rendered once a grinder is set, so
+   the row appearing is itself the feedback that the choice took effect. */
+.recipe-card .rc-grind {
+  align-items: baseline;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  gap: 8px;
+  padding: 9px 18px;
+}
+
+.recipe-card .rc-grind span {
+  color: var(--ink-3, var(--ink-2));
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+}
+
+.recipe-card .rc-grind strong {
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+/* Grind line on the brew-ready screen. */
+.brew-grind {
+  font-size: 0.95rem;
+  margin: 14px 0 0;
+  opacity: 0.85;
+}
+
+.brew-grind strong {
+  font-weight: 500;
+}
+
+.brew-grind span {
+  opacity: 0.65;
+}
+
+/* Kept visible on mobile — phones are where brewing actually happens, so this is
+   the last thing to drop from the masthead. It shrinks instead. */
+@media (max-width: 720px) {
+  .my-grinder-label {
+    max-width: 82px;
+  }
+
+  .my-grinder-picker {
+    padding-left: 9px;
+  }
+}

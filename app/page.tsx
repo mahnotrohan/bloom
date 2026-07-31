@@ -1251,12 +1251,41 @@ function Header({
           <strong>Bloom</strong>
         </button>
         <nav className="site-nav" aria-label="Primary navigation">
+          <MyGrinderPicker />
           <button className="ghost-button" onClick={onGrind}>Grind guide</button>
           <button className="ghost-button" onClick={onAbout}>How to use</button>
           <button className="primary-button" onClick={onCreate}>Write recipe</button>
         </nav>
       </div>
     </header>
+  );
+}
+
+/**
+ * Grinder picker in the masthead. Previously the only way to set a grinder was
+ * to open a recipe and expand a panel, so most people never found it — and once
+ * set, there was nothing on screen confirming it had stuck.
+ */
+function MyGrinderPicker() {
+  const [myGrinder, choose] = useMyGrinder();
+  const short = myGrinder.replace(/^(Comandante|1Zpresso|Kingrinder|Timemore|Baratza|Fellow)\s+/, "");
+
+  return (
+    <label className="my-grinder-picker" title="Recipes convert to this grinder">
+      <span className="my-grinder-label">{myGrinder ? short : "Your grinder"}</span>
+      <select
+        aria-label="Your grinder"
+        value={myGrinder}
+        onChange={(event) => choose(event.target.value)}
+      >
+        <option value="">Not set</option>
+        {grinderNames.map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -1830,6 +1859,21 @@ function RecipeCard({
     }
   }
 
+  // Show the grind in the reader's own clicks right on the card. Without this,
+  // choosing a grinder appeared to do nothing until you opened a recipe.
+  const [myGrinder] = useMyGrinder();
+  const cardGrind = myGrinder
+    ? translateGrind(
+        {
+          brewer: recipe.brewer,
+          grind: recipe.grind,
+          grinder: recipe.grinder,
+          clicks: recipe.clicks,
+        },
+        myGrinder,
+      )
+    : null;
+
   const author = displayCreator(recipe.creator);
   // One quiet metadata line instead of coloured pills plus a separate bean and
   // creator line. Milk is deliberately not here — the filled dripper already
@@ -1897,6 +1941,12 @@ function RecipeCard({
           <strong>{formatTime(totalTime(recipe.timeline))}</strong>
         </div>
       </div>
+      {cardGrind?.ok ? (
+        <div className="rc-grind">
+          <span>Grind</span>
+          <strong>{cardGrind.display}</strong>
+        </div>
+      ) : null}
       <div className="rc-foot">
         <span />
         {onShare ? (
@@ -2935,6 +2985,9 @@ function BrewMode({
             {recipe.temp ? <div><span>Temp</span><strong>{recipe.temp}°C</strong></div> : null}
             <div><span>Time</span><strong>{formatTime(total)}</strong></div>
           </div>
+          {/* The ready screen is the one moment you are actually at the grinder,
+              so this is where the converted number matters most. */}
+          <BrewGrind recipe={recipe} />
           {recipe.dose > 0 ? (
             <div className="brew-scaler">
               <p>Brewing more or less? Targets scale.</p>
@@ -3090,6 +3143,36 @@ function BrewMode({
    together is the most common home-brewing mistake and it teaches nothing.
    ------------------------------------------------------------------------- */
 
+/** Grind line on the brew-ready screen, in the reader's units where possible. */
+function BrewGrind({ recipe }: { recipe: Recipe }) {
+  const [myGrinder] = useMyGrinder();
+  const translation = myGrinder
+    ? translateGrind(
+        {
+          brewer: recipe.brewer,
+          grind: recipe.grind,
+          grinder: recipe.grinder,
+          clicks: recipe.clicks,
+        },
+        myGrinder,
+      )
+    : null;
+
+  const published = recipe.grinder.trim() && recipe.clicks.trim()
+    ? `${recipe.clicks.trim()} on a ${recipe.grinder.trim()}`
+    : recipe.grind;
+
+  if (!translation?.ok && !published) return null;
+
+  return (
+    <p className="brew-grind">
+      Grind{" "}
+      <strong>{translation?.ok ? translation.display : published}</strong>
+      {translation?.ok ? <span> on your {translation.grinderName}</span> : null}
+    </p>
+  );
+}
+
 function TasteLoop() {
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [myGrinder] = useMyGrinder();
@@ -3124,12 +3207,13 @@ function TasteLoop() {
 }
 
 function RecipeHeader({ recipe, compact = false }: { recipe: Recipe; compact?: boolean }) {
+  // Grind, grinder and clicks are deliberately absent here: the GrindTranslation
+  // panel below owns them and states them in the reader's own units. Leaving a
+  // raw "Fine" chip up here meant the page gave two different answers to the
+  // same question a couple of hundred pixels apart.
   const grindItems = [
     recipe.milk ? "With milk" : "No milk",
     roastLabel(recipe.roast) ? `${roastLabel(recipe.roast)} roast` : "",
-    recipe.grind,
-    recipe.grinder.trim(),
-    recipe.clicks.trim(),
     recipe.agitation ? `${recipe.agitation} agitation` : "",
   ].filter(Boolean);
 

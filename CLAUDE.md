@@ -159,6 +159,15 @@ Two subtleties that are easy to break:
   point — published figures range from 30 to 80 µm/click — and it self-flags.
   Baratza Encore and Fellow Ode are `unverified` placeholders.
 
+**Six surfaces read the grinder, and they must stay in sync:** the masthead
+picker (`MyGrinderPicker`), library cards (`.rc-grind`), the recipe page panel
+(`GrindTranslation`), the brew-ready screen (`BrewGrind`), the taste loop, and
+the shared `/r/<id>` page (`app/r/[id]/tools.tsx`). The first version only wired
+the recipe panel, which made choosing a grinder look like it did nothing —
+**if you add a place that shows grind, translate it there too.** Relatedly,
+`RecipeHeader` deliberately omits the raw grind / grinder / clicks chips: with
+them present the page stated "Fine" and "21 clicks" a few hundred pixels apart.
+
 The reader's grinder lives in `localStorage` under `bloom.setup.grinder.v1`, read
 through `app/lib/use-my-grinder.ts`. That hook uses `useSyncExternalStore`
 deliberately: it avoids `setState`-in-effect, avoids a hydration mismatch (the
