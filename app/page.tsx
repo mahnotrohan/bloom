@@ -26,6 +26,7 @@ import {
   translateGrind,
   tasteAdvice,
   tasteVerdicts,
+  untranslatableReason,
   type Verdict,
 } from "./lib/grind";
 import { useMyGrinder } from "./lib/use-my-grinder";
@@ -3309,7 +3310,9 @@ function GrindTranslation({ recipe }: { recipe: Recipe }) {
 
       {open ? (
         <div className="translate-picker">
-          <label htmlFor="my-grinder">Your grinder</label>
+          <label className="translate-field" htmlFor="my-grinder">
+            Your grinder
+          </label>
           <select
             id="my-grinder"
             value={myGrinder}
@@ -3322,16 +3325,25 @@ function GrindTranslation({ recipe }: { recipe: Recipe }) {
               </option>
             ))}
           </select>
-          <p className="translate-hint">
-            Saved on this device only, and reused on every recipe.
-          </p>
+          <p className="translate-hint">Saved on this device, reused everywhere.</p>
         </div>
       ) : null}
 
-      {translation && !translation.ok && translation.reason === "out-of-range" ? (
-        <p className="translate-caveat">
-          This grind sits outside your grinder&apos;s usable range.
-        </p>
+      {/* When we can't convert, say why. Showing the publisher's own numbers
+          under a "your grinder" picker with no explanation reads as a bug. */}
+      {myGrinder && translation && !translation.ok ? (
+        <div className="translate-caveats">
+          <p className="translate-caveat">
+            {translation.reason === "out-of-range"
+              ? `${translation.grinderName ?? "Your grinder"} doesn't reach this grind size.`
+              : (untranslatableReason({
+                  brewer: recipe.brewer,
+                  grind: recipe.grind,
+                  grinder: recipe.grinder,
+                  clicks: recipe.clicks,
+                }) ?? "This recipe can't be converted yet.")}
+          </p>
+        </div>
       ) : null}
 
       {translation?.ok && translation.caveats.length ? (

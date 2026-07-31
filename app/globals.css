@@ -4040,19 +4040,25 @@ select {
   justify-content: space-between;
 }
 
+/* Label and value deliberately match .header-metrics above them — same 0.66rem
+   caps label, same 1.35rem weight-650 value — so Grind reads as one more metric
+   rather than a differently-styled block bolted underneath. */
 .translate-label {
   color: var(--ink-2);
   display: block;
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
+  font-family: var(--sans);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .translate-value strong {
   display: block;
-  font-size: 1.42rem;
-  font-weight: 500;
-  margin-top: 4px;
+  font-size: 1.35rem;
+  font-weight: 650;
+  line-height: 1.15;
+  margin-top: 6px;
 }
 
 .translate-sub {
@@ -4078,33 +4084,45 @@ select {
   background: var(--bone);
 }
 
+/* The picker is secondary — the masthead is the primary place to set a grinder,
+   so this stays quiet. The global `label` rule is uppercase/700 and the global
+   `select` rule is a 42px full-width field; both are wrong at this size and are
+   deliberately overridden rather than inherited. */
 .translate-picker {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 14px;
 }
 
-.translate-picker label {
+.translate-picker label.translate-field {
   color: var(--ink-2);
-  display: block;
-  font-size: 0.82rem;
-  margin-bottom: 5px;
+  display: inline-flex;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .translate-picker select {
-  background: var(--card);
+  background: transparent;
   border: 1px solid var(--rule-2);
   border-radius: 8px;
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 0.92rem;
-  max-width: 320px;
-  padding: 9px 11px;
-  width: 100%;
+  font-size: 0.86rem;
+  min-height: 34px;
+  padding: 0 9px;
+  width: auto;
 }
 
 .translate-hint {
-  color: var(--ink-2);
-  font-size: 0.78rem;
-  margin-top: 6px;
+  color: var(--ink-3, var(--ink-2));
+  flex-basis: 100%;
+  font-size: 0.74rem;
+  margin: 0;
 }
 
 .translate-caveats {
@@ -4164,6 +4182,7 @@ select {
 }
 
 .dose-stepper strong {
+  font-family: var(--sans);
   display: inline-block;
   font-size: 1.2rem;
   font-weight: 500;

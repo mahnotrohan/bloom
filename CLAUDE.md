@@ -145,6 +145,25 @@ The model **pivots on microns**. Every grinder calibrates to microns once, so a
 conversion is two lookups. Never add grinder-to-grinder mappings — twenty
 grinders would be 190 pairs and it never converges.
 
+**`brewer` is not a closed set.** The `Brewer` union in `page.tsx` lists ten
+values, but the builder allows free text and the live library already contains
+`SOLO`, `Orea` and `GINA`. `brewerMethod` maps brewer names onto the working
+ranges in `methods`, and `methodFor` falls back to a cone's range with
+`recognised: false` for anything unknown — which surfaces as a caveat rather than
+a silent guess. **Add new brewers to `brewerMethod`, or translation quietly stops
+working for them.** The same applies to `grinder`, which is free text too:
+`findGrinder` does exact, prefix and reverse-prefix matching so `"Timemore C2"`
+resolves to `"Timemore C2 / C3"`.
+
+`clicks` is also free text and sometimes holds microns (`"630 microns"`). That
+case is detected and used directly — it is the most accurate input available,
+since it needs no conversion at all.
+
+**When translation is impossible, say why.** `untranslatableReason()` exists
+because the first version displayed the publisher's own numbers under a "your
+grinder" picker with no explanation, which read as a broken feature rather than
+an honest limit.
+
 Two subtleties that are easy to break:
 
 - **Qualitative grind is relative to the brewer.** Bloom's absolute `Fine` bucket
@@ -209,6 +228,12 @@ C40 and 4 on a JX-Pro.
   and never shown to someone arriving on a deep link.
 - Timeline stays **vertical on mobile**; a horizontal rail was tried and caused
   overflow and auto-scroll problems.
+- **`globals.css` has aggressive global `label` and `select` rules** —
+  `label` is `700`/uppercase/`0.14em` and `select` is a full-width 42px field with
+  a 2px radius. Any new form control inherits them and looks twice as heavy as
+  intended, so scoped overrides are required. The translation panel matches
+  `.header-metrics` exactly (0.66rem caps label, 1.35rem/650 value) so Grind
+  reads as one more metric rather than a differently-styled block.
 - **The masthead is opaque.** It was `rgba(255,255,255,0.9)`, which let the
   recipe page's Brew / Share row bleed through as it scrolled underneath and read
   as clipped buttons inside the masthead. A `backdrop-filter` keeps it light

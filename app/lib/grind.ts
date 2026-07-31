@@ -89,10 +89,31 @@ export const brewerMethod: Record<string, string> = {
   "Kalita Wave": "Kalita Wave",
   "Cafec Deep 27": "Cafec Deep 27",
   "Chemex": "Chemex",
+  // Free-typed brewers that exist in the library. `brewer` is not really a
+  // closed set — the builder allows "Other…" — so these are mapped to the
+  // closest archetype by geometry: conical cones behave like a V60, flat beds
+  // like a Kalita.
+  "SOLO": "V60",
+  "Solo Dripper": "V60",
+  "GINA": "V60",
+  "Orea": "Kalita Wave",
+  "Orea V4": "Kalita Wave",
+  "Flower Dripper": "Kalita Wave",
+  "December Dripper": "V60",
+  "Switch": "V60",
+  "Hario Switch": "V60",
+  "Clever": "V60",
+  "Moka": "Moka pot",
+  "Moka Pot": "Moka pot",
+  "Espresso": "Espresso",
+  "Cold Brew": "Cold brew",
   "Other - Conical": "V60",
   "Other - Flatbed": "Kalita Wave",
   "Other - Immersion": "French Press",
 };
+
+/** Used when a brewer isn't recognised at all — most are pourover cones. */
+const FALLBACK_METHOD = "V60";
 
 /**
  * How much we trust a grinder's calibration. This drives what the UI is allowed
@@ -144,6 +165,8 @@ export const grinders: Grinder[] = [
   { name: "1Zpresso JX-Pro", kind: "clicks", perClick: 12.5, max: 130, note: "12.5 µm / click", burr: "conical", confidence: "high" },
   { name: "1Zpresso JX", kind: "clicks", perClick: 25, max: 60, note: "25 µm / click", burr: "conical", confidence: "high" },
   { name: "1Zpresso K-Plus", kind: "clicks", perClick: 22, max: 90, note: "22 µm / click", burr: "conical", confidence: "high" },
+  { name: "1Zpresso K-Pro", kind: "clicks", perClick: 22, max: 90, note: "22 µm / click", burr: "conical", confidence: "medium" },
+  { name: "1Zpresso Q2", kind: "clicks", perClick: 25, max: 60, note: "25 µm / click", burr: "conical", confidence: "medium" },
   { name: "Timemore C2 / C3", kind: "clicks", perClick: 30, max: 50, note: "~30 µm / click", burr: "conical", confidence: "low" },
   { name: "Kingrinder K6", kind: "clicks", perClick: 16, max: 120, note: "16 µm / click", burr: "conical", confidence: "high" },
   { name: "Kingrinder K4", kind: "clicks", perClick: 16, max: 120, note: "16 µm / click", burr: "conical", confidence: "high" },
@@ -218,9 +241,27 @@ export function distanceFromRange(microns: number, low: number, high: number) {
   return 0;
 }
 
-export function methodFor(brewer: string): Method | null {
-  const name = brewerMethod[brewer] ?? brewer;
-  return methods.find((m) => m.name === name) ?? null;
+/**
+ * The method whose working range we should read a qualitative grind against.
+ * `recognised` is false when we fell back, so the caller can say so rather than
+ * quietly presenting a guess as fact.
+ */
+export function methodFor(brewer: string): { method: Method; recognised: boolean } | null {
+  const key = (brewer ?? "").trim();
+  const mapped = brewerMethod[key] ?? key;
+  const direct = methods.find((m) => m.name.toLowerCase() === mapped.toLowerCase());
+  if (direct) return { method: direct, recognised: true };
+
+  // Loose match, so "Orea V4 flat" or "V60 plastic" still land somewhere sane.
+  const loose = methods.find(
+    (m) =>
+      key.toLowerCase().includes(m.name.toLowerCase()) ||
+      m.name.toLowerCase().includes(key.toLowerCase()),
+  );
+  if (key && loose) return { method: loose, recognised: true };
+
+  const fallback = methods.find((m) => m.name === FALLBACK_METHOD);
+  return fallback ? { method: fallback, recognised: false } : null;
 }
 
 export function settingFor(grinder: Grinder, microns: number) {
@@ -271,6 +312,8 @@ export type MicronRange = {
   confidence: Confidence;
   basis: "measured" | "qualitative";
   sourceBurr: "conical" | "flat" | null;
+  /** True when the brewer wasn't recognised and a cone's range was assumed. */
+  brewerGuessed?: boolean;
 };
 
 export function bucketWithinMethod(bucket: string, method: Method): MicronRange {
@@ -300,9 +343,27 @@ export type GrindSource = {
 };
 
 export function micronsForRecipe(recipe: GrindSource): MicronRange | null {
+  const rawClicks = String(recipe.clicks ?? "").trim();
+
+  // Best possible input: the publisher already gave microns ("630 microns",
+  // "630µm"). No conversion needed and no grinder involved, so this is exact.
+  if (/micron|µm|um\b/i.test(rawClicks)) {
+    const direct = Number.parseFloat(rawClicks.replace(/[^\d.]/g, ""));
+    if (Number.isFinite(direct) && direct > 0) {
+      return {
+        min: Math.round(direct - 25),
+        max: Math.round(direct + 25),
+        mid: Math.round(direct),
+        confidence: "high",
+        basis: "measured",
+        sourceBurr: null,
+      };
+    }
+  }
+
   // Measured path — the publisher told us their grinder and click count.
   const sourceGrinder = findGrinder(recipe.grinder);
-  const clicks = Number.parseFloat(String(recipe.clicks ?? "").replace(/[^\d.]/g, ""));
+  const clicks = Number.parseFloat(rawClicks.replace(/[^\d.]/g, ""));
   if (sourceGrinder && Number.isFinite(clicks) && clicks > 0) {
     if (sourceGrinder.kind === "clicks") {
       const mid = clicks * sourceGrinder.perClick;
@@ -337,8 +398,29 @@ export function micronsForRecipe(recipe: GrindSource): MicronRange | null {
   }
 
   // Qualitative path — a word, interpreted relative to the brewer.
-  const method = methodFor(recipe.brewer);
-  if (recipe.grind && method) return bucketWithinMethod(recipe.grind, method);
+  const resolved = methodFor(recipe.brewer);
+  if (recipe.grind && resolved) {
+    const range = bucketWithinMethod(recipe.grind, resolved.method);
+    return resolved.recognised
+      ? range
+      : { ...range, confidence: "unverified", brewerGuessed: true };
+  }
+
+  return null;
+}
+
+/**
+ * Why a recipe couldn't be translated. Surfaced to the reader, because a panel
+ * that silently shows the publisher's own numbers under a "your grinder" picker
+ * looks broken rather than honest.
+ */
+export function untranslatableReason(recipe: GrindSource): string | null {
+  const rawClicks = String(recipe.clicks ?? "").trim();
+  const grinderName = (recipe.grinder ?? "").trim();
+  if (rawClicks && grinderName && !findGrinder(grinderName)) {
+    return `${grinderName} isn't calibrated yet, and this recipe gives no grind description to fall back on.`;
+  }
+  if (!recipe.grind) return "This recipe doesn't record its grind size.";
   return null;
 }
 
@@ -417,6 +499,11 @@ export function translateGrind(
   if (microns.basis === "qualitative") {
     caveats.push(
       "The original recipe described the grind rather than measuring it — treat this as a starting range.",
+    );
+  }
+  if (microns.brewerGuessed) {
+    caveats.push(
+      `${recipe.brewer || "This brewer"} isn't in the reference list, so a standard cone's range was assumed.`,
     );
   }
   if (microns.sourceBurr && microns.sourceBurr !== target.burr) {
