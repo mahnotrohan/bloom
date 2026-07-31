@@ -42,6 +42,13 @@ export default function RootLayout({
         className={`${hankenGrotesk.variable} antialiased`}
       >
         {children}
+        {/* Cloudflare Web Analytics — visitor counts, top pages, referrers.
+            Separate from the in-app brew funnel in app/analytics.ts. */}
+        <script
+          type="module"
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token": "b183649ca6ee4426b59047628d1141f2"}'
+        />
       </body>
     </html>
   );
