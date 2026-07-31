@@ -256,6 +256,14 @@ C40 and 4 on a JX-Pro.
   and never shown to someone arriving on a deep link.
 - Timeline stays **vertical on mobile**; a horizontal rail was tried and caused
   overflow and auto-scroll problems.
+- **One number, one place on the page.** The dose stepper lives *inside* the Dose
+  metric (`DoseMetric`), not in a band of its own. An earlier version had a
+  separate "Brewing − 23g +" row, which restated the dose and the water the
+  metric row was already showing — the same duplication the grind chips caused.
+  If you add an adjustable value, make it the existing display, not a second one.
+- **`.header-metrics` pads descendant divs, not just children.** Anything nested
+  in a metric cell inherits 12px of padding and drops out of baseline alignment
+  with the rest of the row — this dropped the Dose value 13px. Zero it explicitly.
 - **`globals.css` has aggressive global `label` and `select` rules** —
   `label` is `700`/uppercase/`0.14em` and `select` is a full-width 42px field with
   a 2px radius. Any new form control inherits them and looks twice as heavy as

@@ -4125,51 +4125,70 @@ select {
   margin: 0;
 }
 
+/* Was a full-width filled box carrying a single line of small text, which gave
+   the caveat more visual weight than the grind value it qualifies. Now a quiet
+   note hung off a rule, sized to its content. */
 .translate-caveats {
-  background: var(--oat);
-  border-radius: 8px;
-  margin-top: 14px;
-  padding: 10px 12px;
+  border-left: 2px solid var(--rule-2);
+  margin-top: 12px;
+  max-width: 52ch;
+  padding-left: 10px;
 }
 
 .translate-caveat {
   color: var(--ink-2);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   line-height: 1.5;
-  margin: 2px 0;
+  margin: 3px 0;
 }
 
-.dose-scaler {
-  align-items: center;
-  border-top: 1px solid var(--rule);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 20px;
-  padding-top: 18px;
-}
-
-.dose-scaler .translate-label {
-  display: inline-block;
+/* The dose stepper now lives inside the Dose metric, so there is no separate
+   band. One dose number on the page, with controls on it. */
+.metric-dose > span {
+  color: var(--ink-2);
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .dose-stepper {
   align-items: center;
   display: flex;
-  gap: 4px;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+/* `.header-metrics` pads its descendant divs, not just its children, so the
+   stepper inherited 12px of top padding and dropped the Dose value 13px below
+   every other metric on the row. Measured, not guessed. */
+.header-metrics .dose-stepper {
+  align-items: center;
+  margin-top: 6px;
+  padding: 0;
+}
+
+.header-metrics .dose-stepper strong {
+  margin-top: 0;
 }
 
 .dose-stepper button {
   background: transparent;
   border: 1px solid var(--rule-2);
-  border-radius: 7px;
-  color: var(--ink);
+  border-radius: 6px;
+  color: var(--ink-2);
   cursor: pointer;
-  font-size: 1.05rem;
-  height: 32px;
+  font-size: 0.9rem;
+  height: 24px;
   line-height: 1;
-  transition: background 140ms ease;
-  width: 32px;
+  transition: background 140ms ease, color 140ms ease;
+  width: 24px;
+}
+
+.dose-stepper button:hover:not(:disabled) {
+  color: var(--ink);
 }
 
 .dose-stepper button:hover:not(:disabled) {
@@ -4181,18 +4200,20 @@ select {
   opacity: 0.4;
 }
 
+/* Matches .header-metrics strong so the adjustable Dose reads identically to
+   the metrics either side of it. */
 .dose-stepper strong {
-  font-family: var(--sans);
   display: inline-block;
-  font-size: 1.2rem;
-  font-weight: 500;
-  min-width: 56px;
+  font-size: 1.35rem;
+  font-weight: 650;
+  min-width: 62px;
   text-align: center;
 }
 
 .dose-note {
   color: var(--ink-2);
-  font-size: 0.83rem;
+  font-size: 0.78rem;
+  margin: 8px 0 0;
 }
 
 .dose-reset {
@@ -4200,7 +4221,8 @@ select {
   border: none;
   color: var(--ink-2);
   cursor: pointer;
-  font-size: 0.83rem;
+  font-size: 0.78rem;
+  margin-left: 8px;
   padding: 0;
   text-decoration: underline;
 }
@@ -4461,3 +4483,19 @@ select {
 /* Deliberately no responsive width on .grind-swatch: the canvas bitmap is drawn
    at its logical size, so scaling it with CSS would blur and distort the
    particles. Pass a smaller `width` prop instead if a surface needs one. */
+
+/* Masthead grinder picker: a labelled pair, weighted like the nav links rather
+   than competing with the Write recipe button. */
+.my-grinder-key {
+  color: var(--ink-2);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+
+.my-grinder-picker .my-grinder-label {
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 500;
+}

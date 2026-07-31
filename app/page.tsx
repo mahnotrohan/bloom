@@ -1276,7 +1276,10 @@ function MyGrinderPicker() {
 
   return (
     <label className="my-grinder-picker" title="Recipes convert to this grinder">
-      <span className="my-grinder-label">{myGrinder ? short : "Your grinder"}</span>
+      {/* "C40" alone in a masthead means nothing — the word "Grinder" is what
+          tells you why a model name is sitting next to the nav links. */}
+      <span className="my-grinder-key">Grinder</span>
+      <span className="my-grinder-label">{myGrinder ? short : "Not set"}</span>
       <select
         aria-label="Your grinder"
         value={myGrinder}
@@ -2576,12 +2579,9 @@ function RecipePage({
         </div>
       </div>
       <div className="public-recipe">
-        <RecipeHeader recipe={scaled} />
-        <DoseScaler
-          published={recipe.dose}
-          dose={dose}
-          water={scaled.water}
-          onChange={setDose}
+        <RecipeHeader
+          recipe={scaled}
+          dose={{ value: dose, published: recipe.dose, onChange: setDose }}
         />
         <GrindTranslation recipe={recipe} />
         <Timeline recipe={scaled} />
@@ -3221,7 +3221,21 @@ function TasteLoop() {
   );
 }
 
-function RecipeHeader({ recipe, compact = false }: { recipe: Recipe; compact?: boolean }) {
+function RecipeHeader({
+  recipe,
+  compact = false,
+  dose,
+}: {
+  recipe: Recipe;
+  compact?: boolean;
+  /**
+   * When present, the Dose metric becomes adjustable in place. The stepper used
+   * to live in its own band below, which restated the dose and the water the
+   * metric row was already showing — two identical numbers a hundred pixels
+   * apart. One number, with controls on it, is the whole fix.
+   */
+  dose?: { value: number; published: number; onChange: (next: number) => void };
+}) {
   // Grind, grinder and clicks are deliberately absent here: the GrindTranslation
   // panel below owns them and states them in the reader's own units. Leaving a
   // raw "Fine" chip up here meant the page gave two different answers to the
@@ -3241,12 +3255,26 @@ function RecipeHeader({ recipe, compact = false }: { recipe: Recipe; compact?: b
       </div>
       <div className="header-metrics">
         <Metric label="Brewer" value={recipe.brewer} small />
-        {recipe.dose ? <Metric label="Dose" value={`${recipe.dose}g`} /> : null}
+        {recipe.dose ? (
+          dose ? (
+            <DoseMetric value={dose.value} onChange={dose.onChange} />
+          ) : (
+            <Metric label="Dose" value={`${recipe.dose}g`} />
+          )
+        ) : null}
         {recipe.ratio ? <Metric label="Ratio" value={ratioLabel(recipe.ratio)} /> : null}
         {recipe.water ? <Metric label="Water" value={`${recipe.water}g`} /> : null}
         {recipe.temp ? <Metric label="Temp" value={`${recipe.temp}°C`} /> : null}
         <Metric label="Time" value={formatTime(totalTime(recipe.timeline))} />
       </div>
+      {dose && dose.value !== dose.published ? (
+        <p className="dose-note">
+          Scaled from {dose.published}g
+          <button className="dose-reset" onClick={() => dose.onChange(dose.published)}>
+            Reset
+          </button>
+        </p>
+      ) : null}
       {grindItems.length ? (
         <div className="grind-strip">
           {grindItems.map((item) => (
@@ -3430,51 +3458,37 @@ function scaleRecipe(recipe: Recipe, dose: number): Recipe {
   };
 }
 
-function DoseScaler({
-  published,
-  dose,
-  water,
+/** The Dose metric, adjustable in place. Water follows in its own cell. */
+function DoseMetric({
+  value,
   onChange,
 }: {
-  published: number;
-  dose: number;
-  water: number;
+  value: number;
   onChange: (next: number) => void;
 }) {
-  if (!published) return null;
-  const step = 1;
   const min = 8;
   const max = 60;
-
   return (
-    <section className="dose-scaler">
-      <span className="translate-label">Brewing</span>
+    <div className="metric-dose">
+      <span>Dose</span>
       <div className="dose-stepper">
         <button
           aria-label="Less coffee"
-          disabled={dose <= min}
-          onClick={() => onChange(Math.max(min, Math.round((dose - step) * 10) / 10))}
+          disabled={value <= min}
+          onClick={() => onChange(Math.max(min, Math.round((value - 1) * 10) / 10))}
         >
           −
         </button>
-        <strong>{dose}g</strong>
+        <strong>{value}g</strong>
         <button
           aria-label="More coffee"
-          disabled={dose >= max}
-          onClick={() => onChange(Math.min(max, Math.round((dose + step) * 10) / 10))}
+          disabled={value >= max}
+          onClick={() => onChange(Math.min(max, Math.round((value + 1) * 10) / 10))}
         >
           +
         </button>
       </div>
-      <span className="dose-note">
-        {dose === published ? "as published" : `${water}g water · scaled from ${published}g`}
-      </span>
-      {dose !== published ? (
-        <button className="dose-reset" onClick={() => onChange(published)}>
-          Reset
-        </button>
-      ) : null}
-    </section>
+    </div>
   );
 }
 
