@@ -256,6 +256,12 @@ C40 and 4 on a JX-Pro.
   and never shown to someone arriving on a deep link.
 - Timeline stays **vertical on mobile**; a horizontal rail was tried and caused
   overflow and auto-scroll problems.
+- **The brewing dose is owned by the top-level app component**, not by
+  `RecipePage` or `BrewMode`. Those two are siblings, so when each held its own
+  `useState`, scaling a recipe to 15g and then tapping Brew silently discarded it
+  and started the timer on the published dose. `doseOverride` is `null` until the
+  reader touches a stepper, which keeps the recipe as the source of truth, and it
+  clears when the active recipe changes. Don't reintroduce a local copy.
 - **One number, one place on the page.** The dose stepper lives *inside* the Dose
   metric (`DoseMetric`), not in a band of its own. An earlier version had a
   separate "Brewing − 23g +" row, which restated the dose and the water the

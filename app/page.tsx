@@ -979,6 +979,19 @@ export default function Home() {
   const [brewId, setBrewId] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
 
+  /**
+   * The dose the reader is actually brewing, owned here rather than inside the
+   * recipe page and the brew screen separately. Those two are siblings, so when
+   * each held its own copy, scaling a recipe to 15g and then tapping Brew threw
+   * the change away and started the timer on the published dose.
+   *
+   * `null` means "not adjusted", which resolves to the recipe's own dose. Keeping
+   * it null rather than eagerly copying the number means the recipe stays the
+   * source of truth until the reader actually touches the stepper.
+   */
+  const [doseOverride, setDoseOverride] = useState<number | null>(null);
+  const [doseForId, setDoseForId] = useState("");
+
   function dismissOnboarding() {
     try {
       window.localStorage.setItem(onboardedStorageKey, "1");
@@ -1037,6 +1050,18 @@ export default function Home() {
 
   const activeRecipe =
     recipes.find((recipe) => recipe.id === activeId) ?? recipes[0] ?? seedRecipes[0];
+
+  // Drop the override when the reader moves to a different recipe. Adjusted
+  // during render rather than in an effect, so no frame ever shows the previous
+  // recipe's dose against this recipe's numbers.
+  if (doseForId !== activeRecipe.id) {
+    setDoseForId(activeRecipe.id);
+    setDoseOverride(null);
+  }
+
+  const brewRecipe = recipes.find((r) => r.id === brewId) ?? activeRecipe;
+  const activeDose = doseOverride ?? activeRecipe.dose;
+  const brewDose = doseOverride ?? (brewRecipe.dose > 0 ? brewRecipe.dose : 15);
 
   const filteredRecipes = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -1134,6 +1159,8 @@ export default function Home() {
       ) : view === "recipe" ? (
         <RecipePage
           recipe={activeRecipe}
+          dose={activeDose}
+          onDose={setDoseOverride}
           onShare={() => setShareId(activeRecipe.id)}
           onBrew={() => setBrewId(activeRecipe.id)}
           onBack={() => go("home")}
@@ -1171,7 +1198,9 @@ export default function Home() {
       ) : null}
       {brewId ? (
         <BrewMode
-          recipe={recipes.find((r) => r.id === brewId) ?? activeRecipe}
+          recipe={brewRecipe}
+          dose={brewDose}
+          onDose={setDoseOverride}
           onExit={() => setBrewId("")}
           onShare={() => {
             setBrewId("");
@@ -2481,6 +2510,8 @@ function Builder({
 
 function RecipePage({
   recipe,
+  dose,
+  onDose,
   onShare,
   onBrew,
   onBack,
@@ -2488,6 +2519,9 @@ function RecipePage({
   onDismissPrompt,
 }: {
   recipe: Recipe;
+  /** Owned by the app so the brew screen sees the same number. */
+  dose: number;
+  onDose: (next: number | null) => void;
   onShare: () => void;
   onBrew: () => void;
   onBack: () => void;
@@ -2496,17 +2530,6 @@ function RecipePage({
 }) {
   const [isSharing, setIsSharing] = useState(false);
   const quickBlobRef = useRef<Blob | null>(null);
-
-  // Dose the reader is actually brewing. Starts at the published dose; every
-  // pour target follows it. Adjusted during render rather than in an effect when
-  // the recipe changes, which is the documented pattern and avoids a wasted
-  // render showing the previous recipe's dose.
-  const [dose, setDose] = useState(recipe.dose);
-  const [doseFor, setDoseFor] = useState(recipe.id);
-  if (doseFor !== recipe.id) {
-    setDoseFor(recipe.id);
-    setDose(recipe.dose);
-  }
 
   const scaled = useMemo(() => scaleRecipe(recipe, dose), [recipe, dose]);
 
@@ -2581,7 +2604,12 @@ function RecipePage({
       <div className="public-recipe">
         <RecipeHeader
           recipe={scaled}
-          dose={{ value: dose, published: recipe.dose, onChange: setDose }}
+          dose={{
+            value: dose,
+            published: recipe.dose,
+            // null clears the override, so Reset returns to the recipe's own dose.
+            onChange: (next) => onDose(next === recipe.dose ? null : next),
+          }}
         />
         <GrindTranslation recipe={recipe} />
         <Timeline recipe={scaled} />
@@ -2764,15 +2792,23 @@ function ShareSheet({ recipe, onClose }: { recipe: Recipe; onClose: () => void }
 
 function BrewMode({
   recipe,
+  dose,
+  onDose,
   onExit,
   onShare,
 }: {
   recipe: Recipe;
+  /**
+   * Shared with the recipe page. Previously BrewMode held its own copy, so any
+   * scaling done before tapping Brew was silently discarded.
+   */
+  dose: number;
+  onDose: (next: number | null) => void;
   onExit: () => void;
   onShare: () => void;
 }) {
   const [phase, setPhase] = useState<"ready" | "running" | "done">("ready");
-  const [dose, setDose] = useState(recipe.dose > 0 ? recipe.dose : 15);
+  const setDose = (next: number) => onDose(next === recipe.dose ? null : next);
   const [elapsed, setElapsed] = useState(0);
   const [paused, setPaused] = useState(false);
   const [cueIndex, setCueIndex] = useState(-1);
