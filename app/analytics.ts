@@ -3,6 +3,37 @@
 
 export type BrewEventName = "brew_start" | "brew_complete" | "brew_abandon";
 
+// Lightweight product events, outside the brew funnel. Same pipeline, same
+// silent-failure contract; they just leave most numeric columns at zero.
+export type UsageEventName =
+  | "library_view"
+  | "recipe_view"
+  | "share_open"
+  | "share_sent"
+  | "recipe_publish";
+
+// Fire-and-forget usage event. Only the columns that mean something for the
+// event are filled; the rest keep their zero/empty defaults so the positional
+// column layout in docs/analytics.md stays stable.
+export function trackUsage(
+  event: UsageEventName,
+  fields: { recipeId?: string; brewer?: string; detail?: string } = {},
+) {
+  trackBrewEvent({
+    event: event as unknown as BrewEventName,
+    recipeId: fields.recipeId ?? "",
+    brewer: fields.brewer ?? "",
+    milk: false,
+    stepType: fields.detail ?? "",
+    session: analyticsSession(),
+    elapsed: 0,
+    stepIndex: -1,
+    totalSteps: 0,
+    progress: 0,
+    dose: 0,
+  });
+}
+
 export type BrewEvent = {
   event: BrewEventName;
   recipeId: string;

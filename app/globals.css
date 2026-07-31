@@ -3167,30 +3167,43 @@ select {
   width: 100%;
 }
 
-.filter-row {
-  display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-}
-
-.filter-label {
-  color: var(--ink-3);
-  font-family: var(--sans);
-  font-size: 0.66rem;
-  font-weight: 500;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
+/* One row for both groups: brewer chips, a hairline, then milk chips. The
+   group labels are gone, so the divider is what keeps them readable as two
+   separate axes. */
 .filter-pills {
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
+.filter-divider {
+  align-self: stretch;
+  background: var(--rule-2);
+  flex: 0 0 auto;
+  margin: 4px 6px;
+  width: 1px;
+}
+
+/* Brewer swatch. The dot carries the color so the label can stay --ink-2 and
+   keep its contrast; a colored label at 12.5px would not pass. */
+.pill-dot {
+  border-radius: 50%;
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 7px;
+  margin-right: 7px;
+  width: 7px;
+}
+
+.filter-pill.is-on .pill-dot {
+  box-shadow: 0 0 0 1.5px var(--ink);
+}
+
 .filter-pill {
+  align-items: center;
   background: var(--card);
+  display: inline-flex;
   border: 1px solid var(--rule-2);
   border-radius: 999px;
   color: var(--ink-2);
@@ -3229,12 +3242,12 @@ select {
 }
 
 .filter-clear {
-  align-self: flex-start;
   color: var(--teal);
   font-family: var(--sans);
   font-size: 0.76rem;
   font-weight: 500;
-  padding: 0;
+  margin-left: 4px;
+  padding: 0 6px;
 }
 
 .milk-field {
@@ -3244,13 +3257,17 @@ select {
 }
 
 @media (max-width: 640px) {
-  .filter-row {
-    grid-template-columns: 1fr;
-    gap: 7px;
+  /* On a phone the divider between two wrapped rows reads as a stray mark,
+     so it becomes a full-width rule instead. */
+  .filter-divider {
+    align-self: auto;
+    height: 1px;
+    margin: 3px 0;
+    width: 100%;
   }
 }
 
-/* --- Card: single accent, fingerprint, quiet metadata --- */
+/* --- Card: single accent, dripper mark, quiet metadata --- */
 .recipe-card {
   border: 1px solid var(--rule);
   border-left: 1px solid var(--rule);
@@ -3267,15 +3284,16 @@ select {
 
 .recipe-card .rc-body {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 14px;
   align-items: start;
   padding: 17px 18px 15px;
 }
 
-.rc-fingerprint {
+.rc-mark {
   color: var(--ink);
   flex: 0 0 auto;
+  margin-top: 2px;
 }
 
 .rc-text {
@@ -3364,4 +3382,600 @@ select {
   .recipe-card {
     box-shadow: none;
   }
+}
+
+/* ===== Grind size guide ===== */
+.field-hint-link {
+  color: var(--teal);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  margin-top: 6px;
+  display: inline-block;
+}
+
+.field-hint-link:hover {
+  text-decoration: underline;
+}
+
+.grind-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 34px 0 64px;
+}
+
+.grind-title {
+  font-family: var(--serif);
+  font-size: clamp(1.7rem, 4.2vw, 2.3rem);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  margin: 8px 0 16px;
+}
+
+.grind-lead {
+  font-size: 1.02rem;
+  line-height: 1.6;
+  color: var(--ink);
+  margin: 0 0 26px;
+}
+
+/* --- Texture stage --- */
+.grind-stage {
+  position: relative;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    radial-gradient(rgba(32, 24, 15, 0.03) 1px, transparent 1px),
+    var(--bone);
+  background-size: 4px 4px;
+  box-shadow: 0 12px 34px rgba(49, 43, 36, 0.07);
+}
+
+.grind-canvas-wrap {
+  height: 260px;
+  width: 100%;
+}
+
+.grind-canvas {
+  display: block;
+}
+
+.grind-stage-tag {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  background: rgba(251, 250, 248, 0.9);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+
+/* --- The continuum slider --- */
+.grind-scale {
+  margin: 20px 0 4px;
+}
+
+.grind-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(90deg, #3a2c20 0%, #6b543f 45%, #8d7358 100%);
+  border: none;
+  border-radius: 999px;
+  height: 10px;
+  min-height: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.grind-slider:focus {
+  box-shadow: 0 0 0 3px rgba(72, 108, 99, 0.22);
+}
+
+.grind-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid var(--ink);
+  box-shadow: 0 2px 6px rgba(32, 32, 30, 0.25);
+  cursor: grab;
+}
+
+.grind-slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid var(--ink);
+  cursor: grab;
+}
+
+.grind-scale-ends {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+
+/* --- Readout --- */
+.grind-readout {
+  border-top: 1px solid var(--rule);
+  margin-top: 20px;
+  padding-top: 18px;
+}
+
+.grind-readout-main {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.grind-readout-label {
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.grind-readout-microns {
+  font-family: var(--mono);
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.grind-readout-microns span {
+  color: var(--ink-2);
+  font-size: 0.78rem;
+}
+
+.grind-readout-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+  margin: 16px 0 0;
+}
+
+.grind-readout-meta dt {
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.grind-readout-meta dd {
+  font-size: 0.95rem;
+  margin: 4px 0 0;
+}
+
+.grind-readout-note {
+  color: var(--ink-2);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  margin: 14px 0 0;
+}
+
+/* --- View controls + calibration --- */
+.grind-view-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.grind-switch {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 0.62rem;
+}
+
+.grind-switch input {
+  min-height: 0;
+  width: auto;
+}
+
+.grind-calibrate {
+  background: var(--bone);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  margin-top: 14px;
+  padding: 16px;
+}
+
+.grind-calibrate-copy {
+  color: var(--ink-2);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  margin: 0 0 14px;
+}
+
+.grind-card-outline {
+  align-items: flex-end;
+  border: 2px dashed var(--teal);
+  border-radius: 6px;
+  color: var(--teal);
+  display: flex;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  height: 54px;
+  justify-content: flex-end;
+  letter-spacing: 0.1em;
+  margin-bottom: 14px;
+  max-width: 100%;
+  padding: 4px 6px;
+}
+
+.grind-calibrate-actions {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.grind-calibrate-value {
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+/* --- Blocks --- */
+.grind-block {
+  border-top: 1px solid var(--rule);
+  margin-top: 30px;
+  padding-top: 20px;
+}
+
+.grind-block h2 {
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.grind-block-copy {
+  color: var(--ink-2);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  margin: 0 0 14px;
+}
+
+/* --- Brewer ranges --- */
+.grind-methods {
+  display: grid;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.grind-method button {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(120px, 1.1fr) minmax(90px, 2.2fr) auto;
+  padding: 7px 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.grind-method button:hover {
+  background: var(--bone);
+}
+
+.grind-method-name {
+  color: var(--ink-2);
+  font-size: 0.86rem;
+}
+
+.grind-method.is-active .grind-method-name {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.grind-method-track {
+  background: var(--rule);
+  border-radius: 999px;
+  display: block;
+  height: 8px;
+  position: relative;
+}
+
+.grind-method-bar {
+  background: var(--rule-2);
+  border-radius: 999px;
+  height: 100%;
+  position: absolute;
+  top: 0;
+}
+
+.grind-method.is-active .grind-method-bar {
+  background: var(--teal);
+}
+
+.grind-method-range {
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* --- Grinder settings --- */
+.grind-grinders {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.grind-grinders li {
+  align-items: center;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 11px 0;
+}
+
+.grind-grinders li:last-child {
+  border-bottom: none;
+}
+
+.grind-grinder-name {
+  display: grid;
+  font-size: 0.92rem;
+  gap: 3px;
+}
+
+.grind-grinder-name span {
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.grind-grinder-value {
+  align-items: baseline;
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.grind-grinder-value strong {
+  font-family: var(--mono);
+  font-size: 1.15rem;
+}
+
+.grind-grinder-value span {
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.grind-grinder-out {
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* --- Taste diagnosis --- */
+.grind-taste {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  margin-bottom: 16px;
+}
+
+.grind-taste > div {
+  background: var(--bone);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.grind-taste p {
+  color: var(--ink-2);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.grind-taste-head {
+  color: var(--ink) !important;
+  font-family: var(--mono);
+  font-size: 0.6rem !important;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  margin-bottom: 6px !important;
+  text-transform: uppercase;
+}
+
+.grind-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+@media (max-width: 640px) {
+  .grind-canvas-wrap {
+    height: 200px;
+  }
+
+  .grind-method button {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "name range"
+      "track track";
+  }
+
+  .grind-method-name {
+    grid-area: name;
+  }
+
+  .grind-method-range {
+    grid-area: range;
+  }
+
+  .grind-method-track {
+    grid-area: track;
+  }
+}
+
+/* ===== Stats page (#/stats) ===== */
+.stats-page {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 30px 0 64px;
+}
+
+.stats-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+.stats-range {
+  display: flex;
+  gap: 8px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 30px;
+}
+
+.stats-card {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.stats-card span {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+
+.stats-card strong {
+  font-size: 1.7rem;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.stats-block {
+  border-top: 1px solid var(--rule);
+  padding-top: 20px;
+  margin-bottom: 26px;
+}
+
+.stats-block h2 {
+  font-family: var(--serif);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.stats-table th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  padding: 0 10px 8px 0;
+}
+
+.stats-table td {
+  padding: 9px 10px 9px 0;
+  border-top: 1px solid var(--rule);
+}
+
+.stats-table th:not(:first-child),
+.stats-table td:not(:first-child) {
+  text-align: right;
+  width: 110px;
+}
+
+.stats-note {
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.stats-empty {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  padding: 18px 20px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.stats-empty p {
+  margin: 0 0 8px;
+}
+
+.stats-empty p:last-child {
+  margin: 0;
+  color: var(--ink-2);
 }

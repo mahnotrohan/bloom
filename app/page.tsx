@@ -16,9 +16,11 @@ import {
   analyticsSession,
   beaconBrewEvent,
   trackBrewEvent,
+  trackUsage,
   type BrewEvent,
   type BrewEventName,
 } from "./analytics";
+import GrindGuide from "./grind-guide";
 
 type Brewer =
   | "V60"
@@ -32,7 +34,9 @@ type Brewer =
   | "Other - Flatbed"
   | "Other - Immersion";
 
-type MilkFilter = "any" | "black" | "milk";
+// Filters are multi-select. An empty selection means "no constraint", which is
+// what the removed All / Any buttons used to express.
+type MilkOption = "black" | "milk";
 
 type Grind = "Fine" | "Medium-Fine" | "Medium" | "Medium-Coarse" | "Coarse";
 type Agitation = "Gentle" | "Moderate" | "Vigorous";
@@ -74,7 +78,7 @@ type Recipe = {
   stirs: number;
   swirl: boolean;
   // Whether the drink is finished with milk. Drives the library milk filter
-  // and fills the core of the brew fingerprint.
+  // and fills the dripper silhouette on the card.
   milk: boolean;
   creator: string;
   createdAt: string;
@@ -954,8 +958,8 @@ export default function Home() {
   const [view, setView] = useState("home");
   const [activeId, setActiveId] = useState(seedRecipes[0].id);
   const [search, setSearch] = useState("");
-  const [brewerFilter, setBrewerFilter] = useState("All brewers");
-  const [milkFilter, setMilkFilter] = useState<MilkFilter>("any");
+  const [brewerFilters, setBrewerFilters] = useState<string[]>([]);
+  const [milkFilters, setMilkFilters] = useState<MilkOption[]>([]);
   const [publishMessage, setPublishMessage] = useState("");
   const [justPublishedId, setJustPublishedId] = useState("");
   const [shareId, setShareId] = useState("");
@@ -1002,8 +1006,13 @@ export default function Home() {
 
     const syncRoute = () => {
       const [route, id] = window.location.hash.replace("#/", "").split("/");
-      setView(route || "home");
+      const nextView = route || "home";
+      setView(nextView);
       if (id) setActiveId(id);
+      // One usage event per view. Recipe views carry the id so the stats page
+      // can rank recipes; everything else is just a page count.
+      if (nextView === "recipe" && id) trackUsage("recipe_view", { recipeId: id });
+      else if (nextView === "home") trackUsage("library_view");
     };
     syncRoute();
     window.addEventListener("hashchange", syncRoute);
@@ -1025,15 +1034,38 @@ export default function Home() {
           recipe.title.toLowerCase().includes(normalizedSearch) ||
           recipe.creator.toLowerCase().includes(normalizedSearch) ||
           recipe.bean.toLowerCase().includes(normalizedSearch);
+        // No selection means no constraint, so an untouched bar shows everything.
         const matchesBrewer =
-          brewerFilter === "All brewers" || recipe.brewer === brewerFilter;
+          brewerFilters.length === 0 || brewerFilters.includes(recipe.brewer);
         const matchesMilk =
-          milkFilter === "any" ||
-          (milkFilter === "milk" ? recipe.milk : !recipe.milk);
+          milkFilters.length === 0 ||
+          milkFilters.includes(recipe.milk ? "milk" : "black");
         return matchesSearch && matchesBrewer && matchesMilk;
       })
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-  }, [recipes, search, brewerFilter, milkFilter]);
+  }, [recipes, search, brewerFilters, milkFilters]);
+
+  function toggleBrewerFilter(brewer: string) {
+    setBrewerFilters((current) =>
+      current.includes(brewer)
+        ? current.filter((item) => item !== brewer)
+        : [...current, brewer],
+    );
+  }
+
+  function toggleMilkFilter(option: MilkOption) {
+    setMilkFilters((current) =>
+      current.includes(option)
+        ? current.filter((item) => item !== option)
+        : [...current, option],
+    );
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setBrewerFilters([]);
+    setMilkFilters([]);
+  }
 
   function go(nextView: string, id?: string) {
     window.location.hash = id ? `#/${nextView}/${id}` : `#/${nextView}`;
@@ -1055,6 +1087,7 @@ export default function Home() {
     }
     setRecipes((items) => [recipe, ...items]);
     void saveServerRecipe(recipe);
+    trackUsage("recipe_publish", { recipeId: recipe.id, brewer: recipe.brewer });
     setPublishMessage(`Published as /${recipe.creator}/${recipe.id}.`);
     setJustPublishedId(recipe.id);
     go("recipe", recipe.id);
@@ -1066,9 +1099,18 @@ export default function Home() {
         onCreate={startNewRecipe}
         onHome={() => go("home")}
         onAbout={() => go("about")}
+        onGrind={() => go("grind")}
       />
-      {view === "about" ? (
+      {view === "stats" ? (
+        <StatsPage recipes={recipes} />
+      ) : view === "about" ? (
         <AboutPage onCreate={startNewRecipe} onBrowse={() => go("home")} />
+      ) : view === "grind" ? (
+        <GrindGuide
+          initialMicrons={Number(activeId) || undefined}
+          onCreate={startNewRecipe}
+          onBrowse={() => go("home")}
+        />
       ) : view === "builder" ? (
         <Builder
           draft={draft}
@@ -1096,11 +1138,12 @@ export default function Home() {
           recipes={filteredRecipes}
           allRecipes={recipes}
           search={search}
-          brewerFilter={brewerFilter}
-          milkFilter={milkFilter}
+          brewerFilters={brewerFilters}
+          milkFilters={milkFilters}
           onSearch={setSearch}
-          onBrewerFilter={setBrewerFilter}
-          onMilkFilter={setMilkFilter}
+          onToggleBrewer={toggleBrewerFilter}
+          onToggleMilk={toggleMilkFilter}
+          onClearFilters={clearFilters}
           onOpen={(id) => go("recipe", id)}
           onCreate={startNewRecipe}
           onShare={(id) => setShareId(id)}
@@ -1184,10 +1227,12 @@ function Header({
   onCreate,
   onHome,
   onAbout,
+  onGrind,
 }: {
   onCreate: () => void;
   onHome: () => void;
   onAbout: () => void;
+  onGrind: () => void;
 }) {
   return (
     <header className="site-masthead">
@@ -1196,11 +1241,181 @@ function Header({
           <strong>Bloom</strong>
         </button>
         <nav className="site-nav" aria-label="Primary navigation">
+          <button className="ghost-button" onClick={onGrind}>Grind guide</button>
           <button className="ghost-button" onClick={onAbout}>How to use</button>
           <button className="primary-button" onClick={onCreate}>Write recipe</button>
         </nav>
       </div>
     </header>
+  );
+}
+
+type StatsRow = Record<string, unknown>;
+type StatsPayload = {
+  days?: number;
+  totals?: StatsRow[];
+  recipes?: StatsRow[];
+  dropoff?: StatsRow[];
+  error?: string;
+};
+
+function statsNumber(value: unknown) {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Private-ish stats view at #/stats. Everything is read through /api/stats so
+// no analytics token is ever exposed to the browser.
+function StatsPage({ recipes }: { recipes: Recipe[] }) {
+  const [days, setDays] = useState(30);
+  const [data, setData] = useState<StatsPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetch(`/api/stats?days=${days}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((body: StatsPayload) => {
+        if (alive) setData(body);
+      })
+      .catch(() => {
+        if (alive) setData({ error: "Could not load stats." });
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [days]);
+
+  const counts = new Map<string, number>();
+  (data?.totals ?? []).forEach((row) => {
+    counts.set(String(row.event ?? ""), statsNumber(row.count));
+  });
+
+  const started = counts.get("brew_start") ?? 0;
+  const completed = counts.get("brew_complete") ?? 0;
+  const abandoned = counts.get("brew_abandon") ?? 0;
+  const completionRate = started > 0 ? Math.round((completed / started) * 100) : 0;
+  const titleFor = (id: string) => {
+    const match = recipes.find((r) => r.id === id);
+    return match ? recipeTitle(match) : id;
+  };
+
+  const cards = [
+    { label: "Library views", value: counts.get("library_view") ?? 0 },
+    { label: "Recipe opens", value: counts.get("recipe_view") ?? 0 },
+    { label: "Brews started", value: started },
+    { label: "Brews finished", value: completed },
+    { label: "Finish rate", value: started ? `${completionRate}%` : "—" },
+    { label: "Shares", value: counts.get("share_sent") ?? 0 },
+    { label: "New recipes", value: counts.get("recipe_publish") ?? 0 },
+    { label: "Given up mid-brew", value: abandoned },
+  ];
+
+  return (
+    <section className="stats-page mx-auto px-5 sm:px-8">
+      <div className="stats-head">
+        <div>
+          <p className="eyebrow">Bloom stats</p>
+          <h1 className="about-title">How Bloom is being used</h1>
+        </div>
+        <div className="stats-range">
+          {[7, 30, 90].map((option) => (
+            <button
+              key={option}
+              className={days === option ? "style-chip is-active" : "style-chip"}
+              onClick={() => setDays(option)}
+            >
+              {option}d
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? <p className="stats-note">Loading…</p> : null}
+
+      {data?.error ? (
+        <div className="stats-empty">
+          <p>
+            <strong>Stats aren&rsquo;t switched on yet.</strong>
+          </p>
+          <p>{data.error}</p>
+        </div>
+      ) : null}
+
+      {!loading && !data?.error ? (
+        <>
+          <div className="stats-grid">
+            {cards.map((card) => (
+              <div className="stats-card" key={card.label}>
+                <span>{card.label}</span>
+                <strong>{card.value}</strong>
+              </div>
+            ))}
+          </div>
+
+          <div className="stats-block">
+            <h2>Most opened recipes</h2>
+            {(data?.recipes ?? []).length ? (
+              <table className="stats-table">
+                <thead>
+                  <tr>
+                    <th>Recipe</th>
+                    <th>Opens</th>
+                    <th>Brews</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data?.recipes ?? []).map((row, i) => (
+                    <tr key={i}>
+                      <td>{titleFor(String(row.recipe_id ?? ""))}</td>
+                      <td>{statsNumber(row.views)}</td>
+                      <td>{statsNumber(row.brews)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="stats-note">No recipe opens recorded yet.</p>
+            )}
+          </div>
+
+          <div className="stats-block">
+            <h2>Where people stop mid-brew</h2>
+            {(data?.dropoff ?? []).length ? (
+              <table className="stats-table">
+                <thead>
+                  <tr>
+                    <th>Step</th>
+                    <th>Stopped here</th>
+                    <th>Avg. progress</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data?.dropoff ?? []).map((row, i) => (
+                    <tr key={i}>
+                      <td>{String(row.step_type ?? "—")}</td>
+                      <td>{statsNumber(row.ended_here)}</td>
+                      <td>{Math.round(statsNumber(row.avg_progress) * 100)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="stats-note">Nobody has abandoned a brew yet.</p>
+            )}
+          </div>
+
+          <p className="stats-note">
+            Counts cover the last {data?.days ?? days} days. Cloudflare keeps this data for three
+            months.
+          </p>
+        </>
+      ) : null}
+    </section>
   );
 }
 
@@ -1260,11 +1475,12 @@ function Library({
   recipes,
   allRecipes,
   search,
-  brewerFilter,
-  milkFilter,
+  brewerFilters,
+  milkFilters,
   onSearch,
-  onBrewerFilter,
-  onMilkFilter,
+  onToggleBrewer,
+  onToggleMilk,
+  onClearFilters,
   onOpen,
   onCreate,
   onShare,
@@ -1272,11 +1488,12 @@ function Library({
   recipes: Recipe[];
   allRecipes: Recipe[];
   search: string;
-  brewerFilter: string;
-  milkFilter: MilkFilter;
+  brewerFilters: string[];
+  milkFilters: MilkOption[];
   onSearch: (value: string) => void;
-  onBrewerFilter: (value: string) => void;
-  onMilkFilter: (value: MilkFilter) => void;
+  onToggleBrewer: (value: string) => void;
+  onToggleMilk: (value: MilkOption) => void;
+  onClearFilters: () => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
   onShare: (id: string) => void;
@@ -1289,16 +1506,21 @@ function Library({
   const milkCount = allRecipes.filter((recipe) => recipe.milk).length;
   const blackCount = allRecipes.length - milkCount;
 
-  // Only offer brewers that someone has actually published, plus whatever is
-  // currently selected so the active button can never vanish.
-  const brewerOptions = brewers.filter(
-    (brewer) => brewerCounts.has(brewer) || brewer === brewerFilter,
-  );
-  const isFiltered =
-    Boolean(search.trim()) || brewerFilter !== "All brewers" || milkFilter !== "any";
+  // Built from what is actually published, not from the fixed `brewers` list,
+  // so custom brewers people typed in (SOLO, Orea, Chemex) get a chip too.
+  // Known brewers keep their canonical order; custom ones follow, by count.
+  const publishedBrewers = [...brewerCounts.keys()];
+  const brewerOptions = [
+    ...brewers.filter((brewer) => brewerCounts.has(brewer)),
+    ...publishedBrewers
+      .filter((brewer) => !brewers.includes(brewer as Brewer))
+      .sort((a, b) => (brewerCounts.get(b) ?? 0) - (brewerCounts.get(a) ?? 0)),
+  ];
 
-  const milkOptions: { value: MilkFilter; label: string; count: number }[] = [
-    { value: "any", label: "Any", count: allRecipes.length },
+  const isFiltered =
+    Boolean(search.trim()) || brewerFilters.length > 0 || milkFilters.length > 0;
+
+  const milkOptions: { value: MilkOption; label: string; count: number }[] = [
     { value: "black", label: "No milk", count: blackCount },
     { value: "milk", label: "With milk", count: milkCount },
   ];
@@ -1338,58 +1560,42 @@ function Library({
             aria-label="Search recipes"
           />
 
-          <div className="filter-row" role="group" aria-label="Filter by brewer">
-            <span className="filter-label">Brewer</span>
-            <div className="filter-pills">
+          <div className="filter-pills" role="group" aria-label="Filter recipes">
+            {brewerOptions.map((brewer) => (
               <button
-                className={`filter-pill${brewerFilter === "All brewers" ? " is-on" : ""}`}
-                aria-pressed={brewerFilter === "All brewers"}
-                onClick={() => onBrewerFilter("All brewers")}
+                key={brewer}
+                className={`filter-pill${brewerFilters.includes(brewer) ? " is-on" : ""}`}
+                aria-pressed={brewerFilters.includes(brewer)}
+                onClick={() => onToggleBrewer(brewer)}
               >
-                All <span className="filter-count">{allRecipes.length}</span>
+                <span
+                  className="pill-dot"
+                  style={{ background: accentForBrewer(brewer) }}
+                  aria-hidden="true"
+                />
+                {brewer} <span className="filter-count">{brewerCounts.get(brewer) ?? 0}</span>
               </button>
-              {brewerOptions.map((brewer) => (
-                <button
-                  key={brewer}
-                  className={`filter-pill${brewerFilter === brewer ? " is-on" : ""}`}
-                  aria-pressed={brewerFilter === brewer}
-                  onClick={() => onBrewerFilter(brewer)}
-                >
-                  {brewer}{" "}
-                  <span className="filter-count">{brewerCounts.get(brewer) ?? 0}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+            ))}
 
-          <div className="filter-row" role="group" aria-label="Filter by milk">
-            <span className="filter-label">Milk</span>
-            <div className="filter-pills">
-              {milkOptions.map((option) => (
-                <button
-                  key={option.value}
-                  className={`filter-pill${milkFilter === option.value ? " is-on" : ""}`}
-                  aria-pressed={milkFilter === option.value}
-                  onClick={() => onMilkFilter(option.value)}
-                >
-                  {option.label} <span className="filter-count">{option.count}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+            <span className="filter-divider" aria-hidden="true" />
 
-          {isFiltered ? (
-            <button
-              className="filter-clear"
-              onClick={() => {
-                onSearch("");
-                onBrewerFilter("All brewers");
-                onMilkFilter("any");
-              }}
-            >
-              Clear filters
-            </button>
-          ) : null}
+            {milkOptions.map((option) => (
+              <button
+                key={option.value}
+                className={`filter-pill${milkFilters.includes(option.value) ? " is-on" : ""}`}
+                aria-pressed={milkFilters.includes(option.value)}
+                onClick={() => onToggleMilk(option.value)}
+              >
+                {option.label} <span className="filter-count">{option.count}</span>
+              </button>
+            ))}
+
+            {isFiltered ? (
+              <button className="filter-clear" onClick={onClearFilters}>
+                Clear
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="recipe-grid">
@@ -1416,8 +1622,8 @@ function FeaturedSheet({ recipe }: { recipe: Recipe }) {
   );
 }
 
-// Per-brewer colors, used only when drawing share images to canvas. The UI
-// itself is single-accent — see BrewFingerprint.
+// One color per brewer. Shared by the card mark, the filter chips and the share
+// images, so a brewer looks the same everywhere.
 const brewerAccent: Record<string, string> = {
   "V60": "#c65f3f",
   "French Press": "#7a5230",
@@ -1431,66 +1637,152 @@ const brewerAccent: Record<string, string> = {
   "Other - Immersion": "#8a6f5a",
 };
 
+// Brewers people type in themselves (SOLO, Orea, Chemex) are not in the map, so
+// their color comes from a name hash. Deterministic, which matters: a brewer
+// that changed color between page loads would be worse than no color at all.
+const customAccents = ["#8a7bb0", "#9a8a4a", "#8a6f5a", "#6f7f8a", "#a06f7a", "#5f8a6f"];
+
+function accentForBrewer(brewer: string) {
+  const known = brewerAccent[brewer];
+  if (known) return known;
+  let hash = 0;
+  for (let index = 0; index < brewer.length; index += 1) {
+    hash = (hash * 31 + brewer.charCodeAt(index)) % 100000;
+  }
+  return customAccents[hash % customAccents.length];
+}
+
 function displayCreator(creator: string) {
   return creator.trim().replace(/^by\s+/i, "");
 }
 
-// The brew fingerprint: concentric rings generated from the recipe's own
-// numbers, so no two recipes draw the same mark.
-//   ring count  <- pour steps (clamped 3..6)
-//   band index  <- brew temperature, so hotter brews accent further out
-//   core fill   <- milk
-// Drawn in one ink weight with a single teal band; no per-brewer colors.
-function fingerprintRings(recipe: Recipe) {
-  const pours = recipe.timeline.filter((step) => {
-    const type = step.type.toLowerCase();
-    return type === "pour" || type === "bloom";
-  }).length;
-  const count = Math.min(6, Math.max(3, pours || 3));
+// Dripper silhouettes, unchanged from the originals. `fill` is threaded in so
+// the card mark can fill the silhouette to signal milk.
+const glyphGeometry: Record<string, { viewBox: string; strokeWidth: number }> = {
+  "V60": { viewBox: "0 0 24 24", strokeWidth: 1.7 },
+  "Cafec Deep 27": { viewBox: "0 0 24 24", strokeWidth: 1.7 },
+  "Origami Dripper": { viewBox: "0 0 32 32", strokeWidth: 1.5 },
+  "Kalita Wave": { viewBox: "0 0 32 32", strokeWidth: 1.6 },
+  "French Press": { viewBox: "0 0 32 32", strokeWidth: 1.6 },
+  "AeroPress": { viewBox: "0 0 32 32", strokeWidth: 1.5 },
+  SIF: { viewBox: "0 0 32 32", strokeWidth: 1.6 },
+};
 
-  // 80..100 C maps across the available rings; anything outside clamps.
-  const temp = recipe.temp || 93;
-  const warmth = Math.min(1, Math.max(0, (temp - 80) / 20));
-  const bandIndex = Math.min(count - 1, Math.max(1, Math.round(warmth * (count - 1))));
+const fallbackGeometry = { viewBox: "0 0 32 32", strokeWidth: 1.6 };
 
-  return { count, bandIndex };
+function glyphGeometryFor(brewer: string) {
+  return glyphGeometry[brewer] ?? fallbackGeometry;
 }
 
-function BrewFingerprint({ recipe, size = 56 }: { recipe: Recipe; size?: number }) {
-  const { count, bandIndex } = fingerprintRings(recipe);
-  const center = size / 2;
-  const step = (center - 3) / (count + 0.4);
-  const rings = Array.from({ length: count }, (_, index) => ({
-    r: step * (index + 1),
-    isBand: index === bandIndex,
-    isOuter: index === count - 1,
-  }));
-  const scale = size / 56;
+// Only the shapes — the caller supplies the <svg> wrapper and its viewBox.
+function BrewerGlyphShapes({
+  brewer,
+  fill,
+  fillOpacity,
+}: {
+  brewer: string;
+  fill: string;
+  fillOpacity?: number;
+}) {
+  const solid = { fill, fillOpacity };
+  switch (brewer) {
+    case "V60":
+      return <path d="M6 8h12l-6 10z" {...solid} />;
+    case "Cafec Deep 27":
+      return <path d="M7 7h10l-5 13z" {...solid} />;
+    case "Origami Dripper":
+      return (
+        <>
+          <path d="M5 9l8 13h6l8-13" {...solid} />
+          <path d="M5 9l3 2 3-2 3 2 3-2 3 2 3-2 3 2" fill="none" />
+          <path d="M11 11l3 11M21 11l-3 11M16 11v11" fill="none" />
+        </>
+      );
+    case "Kalita Wave":
+      return (
+        <>
+          <path d="M6 10h20l-3.5 11h-13z" {...solid} />
+          <path d="M11.5 21q1.3 1.4 2.6 0t2.6 0 2.6 0" fill="none" />
+        </>
+      );
+    case "French Press":
+      return (
+        <>
+          <rect x="9" y="10" width="12" height="16" rx="2" {...solid} />
+          <path d="M8 9.5h14" fill="none" />
+          <path d="M15 9.5V4" fill="none" />
+          <circle cx="15" cy="3.4" r="1.5" fill="none" />
+          <path d="M9 6.5l-2-1v3" fill="none" />
+          <path d="M21 14q4 0 4 4t-4 4" fill="none" />
+        </>
+      );
+    case "AeroPress":
+      return (
+        <>
+          <path d="M10.5 13h11v8.5l-1 2.6h-9l-1-2.6z" {...solid} />
+          <rect x="9.5" y="4" width="13" height="2.6" rx="1.2" fill="none" />
+          <rect x="12" y="6.6" width="8" height="6.4" rx="0.8" fill="none" />
+          <path d="M10.5 13q5.5-1.6 11 0" fill="none" />
+        </>
+      );
+    case "SIF":
+      return (
+        <>
+          <path d="M11 16h10v8a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2z" {...solid} />
+          <rect x="11" y="10" width="10" height="6" fill="none" />
+          <path d="M11 10q5-4 10 0" fill="none" />
+          <path d="M16 7V5" fill="none" />
+          <circle cx="16" cy="4" r="1.1" fill="none" />
+        </>
+      );
+    default:
+      // Other - Conical / Flatbed / Immersion, and any brewer someone typed in.
+      return (
+        <>
+          <path d="M9 10h11v10a4 4 0 0 1-4 4h-3a4 4 0 0 1-4-4z" {...solid} />
+          <path d="M20 12q4 0 4 3.5t-4 3.5" fill="none" />
+        </>
+      );
+  }
+}
+
+// The card's mark: just the dripper.
+//
+// This previously carried generated rings encoding pour count and brew
+// temperature. They were removed on purpose. Ring count was capped by the
+// available space, so different recipes collided, and the accent band's radius
+// depended on the ring count — meaning the same temperature sat at a different
+// radius on every card and no two marks could be compared. An encoding nobody
+// can decode is noise wearing the costume of information.
+//
+// Milk is the one thing still encoded, and only because it needs no legend: a
+// filled silhouette reads as a dripper with something in it. Anything genuinely
+// quantitative belongs on the recipe page, where there is room to label it.
+function BrewerMark({ recipe, size = 40 }: { recipe: Recipe; size?: number }) {
+  const glyph = glyphGeometryFor(recipe.brewer);
+  const accent = accentForBrewer(recipe.brewer);
 
   return (
     <svg
-      className="rc-fingerprint"
+      className="rc-mark"
       width={size}
       height={size}
-      viewBox={`0 0 ${size} ${size}`}
+      viewBox={glyph.viewBox}
       role="img"
-      aria-label={`Brew fingerprint: ${count} pours, ${recipe.milk ? "with milk" : "no milk"}`}
+      aria-label={`${recipe.brewer}, ${recipe.milk ? "with milk" : "no milk"}`}
+      fill="none"
+      stroke={accent}
+      strokeWidth={glyph.strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      {recipe.milk ? (
-        <circle cx={center} cy={center} r={step * 0.9} fill="var(--rule)" />
-      ) : null}
-      {rings.map((ring) => (
-        <circle
-          key={ring.r}
-          cx={center}
-          cy={center}
-          r={ring.r}
-          fill="none"
-          stroke={ring.isBand ? "var(--teal)" : ring.isOuter ? "var(--ink-4)" : "var(--ink)"}
-          strokeWidth={ring.isBand ? 2.2 * scale : 1 * scale}
-          strokeDasharray={ring.isOuter && !ring.isBand ? `${2.5 * scale} ${4 * scale}` : undefined}
-        />
-      ))}
+      {/* Milk tints the silhouette in the brewer's own color rather than a flat
+          grey, so the two cues stack instead of fighting. */}
+      <BrewerGlyphShapes
+        brewer={recipe.brewer}
+        fill={recipe.milk ? accent : "none"}
+        fillOpacity={recipe.milk ? 0.16 : undefined}
+      />
     </svg>
   );
 }
@@ -1513,10 +1805,10 @@ function RecipeCard({
 
   const author = displayCreator(recipe.creator);
   // One quiet metadata line instead of coloured pills plus a separate bean and
-  // creator line.
+  // creator line. Milk is deliberately not here — the filled dripper already
+  // carries it, and repeating "no milk" on every card was noise.
   const metaLine = [
     recipe.brewer,
-    recipe.milk ? "with milk" : "no milk",
     roastLabel(recipe.roast) ? `${roastLabel(recipe.roast).toLowerCase()} roast` : "",
   ]
     .filter(Boolean)
@@ -1531,7 +1823,7 @@ function RecipeCard({
       onKeyDown={handleCardKeyDown}
     >
       <div className="rc-body">
-        <BrewFingerprint recipe={recipe} />
+        <BrewerMark recipe={recipe} />
         <div className="rc-text">
           <p className="rc-meta-line">{metaLine}</p>
           <h3>{recipeTitle(recipe)}</h3>
@@ -1922,6 +2214,10 @@ function Builder({
                     <option key={g}>{g}</option>
                   ))}
                 </select>
+                {/* Opens in a new tab so an in-progress draft is never lost. */}
+                <a className="field-hint-link" href="#/grind" target="_blank" rel="noreferrer">
+                  Not sure? Open the grind guide
+                </a>
               </DetailField>
             ) : null}
             {openDetails.includes("roast") ? (
@@ -2117,6 +2413,11 @@ function RecipePage({
 
   async function quickShare() {
     setIsSharing(true);
+    trackUsage("share_sent", {
+      recipeId: recipe.id,
+      brewer: recipe.brewer,
+      detail: "quick",
+    });
     try {
       await shareRecipeImage(recipe, quickBlobRef.current);
     } finally {
@@ -2181,6 +2482,12 @@ function ShareSheet({ recipe, onClose }: { recipe: Recipe; onClose: () => void }
   const [isSharing, setIsSharing] = useState(false);
   const blobRef = useRef<Blob | null>(null);
 
+  // Opening the sheet is its own funnel step: it separates "wanted to share"
+  // from "actually shared".
+  useEffect(() => {
+    trackUsage("share_open", { recipeId: recipe.id, brewer: recipe.brewer });
+  }, [recipe.id, recipe.brewer]);
+
   // Re-render the share image whenever anything changes. The blob is kept
   // ready so Share can call navigator.share() inside the tap gesture.
   useEffect(() => {
@@ -2225,6 +2532,11 @@ function ShareSheet({ recipe, onClose }: { recipe: Recipe; onClose: () => void }
 
   async function handleShare() {
     setIsSharing(true);
+    trackUsage("share_sent", {
+      recipeId: recipe.id,
+      brewer: recipe.brewer,
+      detail: photo ? `photo:${style}` : "card",
+    });
     try {
       await shareRecipeImage(recipe, blobRef.current);
     } finally {

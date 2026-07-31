@@ -19,6 +19,12 @@ const allowedEvents = new Set([
   "brew_start",
   "brew_complete",
   "brew_abandon",
+  // Usage events. Same columns; numeric ones sit at zero.
+  "library_view",
+  "recipe_view",
+  "share_open",
+  "share_sent",
+  "recipe_publish",
 ]);
 
 type EventPayload = {
