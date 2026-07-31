@@ -25,9 +25,27 @@ Vite + React (the `vinext` starter) deployed as a **Cloudflare Worker**, with
 font: Hanken Grotesk (a free Graphik-alike). Tailwind is present but almost all
 styling is hand-written CSS in `app/globals.css`.
 
-Nearly the whole app is one file: `app/page.tsx` (~2600 lines). It is a
+Nearly the whole app is one file: `app/page.tsx` (~3400 lines). It is a
 hash-routed SPA — views are `home`, `recipe`, `builder`, `about`, `grind`,
 `stats`, `creator`, e.g. `#/recipe/<id>`.
+
+**There is now also a real server route: `/r/<id>`.** This is the canonical,
+shareable recipe URL and the one every Share action emits. It exists because a
+hash fragment is never sent to the server, so every link ever shared showed the
+homepage shell — wrong title, no card — in WhatsApp, Slack, Twitter and Google.
+`app/r/[id]/page.tsx` is a server component that reads D1 directly
+(`app/lib/recipe-server.ts`), emits per-recipe metadata and schema.org Recipe
+JSON-LD, and renders the recipe as HTML that works with JavaScript disabled.
+`app/r/[id]/opengraph-image.tsx` generates the 1200×630 link-preview card via
+`next/og`, and `app/sitemap.ts` lists every recipe.
+
+The SPA still owns the brew timer; `/r/<id>` links into it. **Migrating the SPA
+itself off hash routing is the obvious next step and has not been done** — it
+would mean path-routing `page.tsx`, which currently reads `window.location.hash`
+in `syncRoute`.
+
+`metadataBase` is set in `app/layout.tsx` and is load-bearing: without it the
+generated OG image URL is relative, which crawlers reject.
 
 ## Deploying — read this before promising anything
 
@@ -116,6 +134,44 @@ were added and relabelled.
 Zone analytics for `rohanmahnot.space` includes all subdomains; filter by
 Host = `bloom.rohanmahnot.space` to isolate Bloom.
 
+## Grind, translation and the taste loop
+
+`app/lib/grind.ts` is the single source of truth for grind size. The tables used
+to live privately inside `grind-guide.tsx`; that file now imports them, so the
+guide, the recipe page and the share page cannot drift apart. Anything touching
+grind belongs here.
+
+The model **pivots on microns**. Every grinder calibrates to microns once, so a
+conversion is two lookups. Never add grinder-to-grinder mappings — twenty
+grinders would be 190 pairs and it never converges.
+
+Two subtleties that are easy to break:
+
+- **Qualitative grind is relative to the brewer.** Bloom's absolute `Fine` bucket
+  tops out at 420 µm, but no V60 is brewed at 420 µm. So `bucketWithinMethod`
+  maps the five stored values *ordinally onto the brewer's own working range* —
+  "Fine" on a V60 is 600–650 µm, "Fine" on a French press is 1000–1050 µm. Do not
+  "fix" this back to absolute microns.
+- **Confidence is shipped, not hidden.** Every grinder carries a `confidence`
+  (`high` = manufacturer-published, down to `unverified` = interpolated) and
+  `translateGrind` returns a range plus `caveats[]`. Users forgive a range; they
+  do not forgive a confident number that tastes wrong. Timemore is the known weak
+  point — published figures range from 30 to 80 µm/click — and it self-flags.
+  Baratza Encore and Fellow Ode are `unverified` placeholders.
+
+The reader's grinder lives in `localStorage` under `bloom.setup.grinder.v1`, read
+through `app/lib/use-my-grinder.ts`. That hook uses `useSyncExternalStore`
+deliberately: it avoids `setState`-in-effect, avoids a hydration mismatch (the
+server snapshot is always `""`), and keeps every component in sync so choosing a
+grinder on one surface re-translates the others immediately. Don't replace it
+with a `useState` + `useEffect` pair — lint will fail and hydration will warn.
+
+`TasteLoop` on the brew-done screen changes **one variable at a time** on
+purpose. Changing grind, temperature and ratio together is the most common
+home-brewing mistake and teaches nothing. Grind moves are expressed in the
+reader's own clicks (~50 µm per move), so the same advice reads as 2 clicks on a
+C40 and 4 on a JX-Pro.
+
 ## Product decisions already settled — don't relitigate
 
 - **Simple by default.** The builder shows only Title, Brewer, Coffee, Water.
@@ -144,6 +200,22 @@ Host = `bloom.rohanmahnot.space` to isolate Bloom.
   and never shown to someone arriving on a deep link.
 - Timeline stays **vertical on mobile**; a horizontal rail was tried and caused
   overflow and auto-scroll problems.
+- **The masthead is opaque.** It was `rgba(255,255,255,0.9)`, which let the
+  recipe page's Brew / Share row bleed through as it scrolled underneath and read
+  as clipped buttons inside the masthead. A `backdrop-filter` keeps it light
+  where supported. Don't lower the alpha again.
+- **Library cards lead with the differentiator.** Thirty recipes are titled
+  "World Brewers Cup — <year>", so the title tells them apart from nothing. The
+  library tallies titles and, for any title used more than once, the card leads
+  with the brewer's name and demotes the title to the meta line. Detected from
+  the data, so a genuinely distinct title is left alone.
+- **Positioning line is "Any recipe, on your gear."** The old "Brew, log, and
+  share your favorite coffee recipes" listed three verbs and promised nothing —
+  and "log" is the feature that killed every competitor in this category.
+- The name and domain were reviewed and **deliberately kept** for now. Known
+  costs: "bloom" is also a brewing step, so the term is unrankable, and
+  `bloom.rohanmahnot.space` reads as a side project. Revisit before any roaster
+  or creator outreach, since a printed QR code makes a rename expensive.
 
 ## Working style that has worked well
 

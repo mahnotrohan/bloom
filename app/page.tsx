@@ -21,6 +21,14 @@ import {
   type BrewEventName,
 } from "./analytics";
 import GrindGuide from "./grind-guide";
+import {
+  grinderNames,
+  translateGrind,
+  tasteAdvice,
+  tasteVerdicts,
+  type Verdict,
+} from "./lib/grind";
+import { useMyGrinder } from "./lib/use-my-grinder";
 
 type Brewer =
   | "V60"
@@ -482,10 +490,11 @@ async function shareRecipeImage(recipe: Recipe, preRendered?: Blob | null) {
   // the click gesture (desktop drops user-activation across an await).
   const blob = preRendered ?? (await renderRecipeImage(recipe));
   const filename = `${slugify(recipeTitle(recipe)) || "brew-recipe"}.jpg`;
+  // Real path, not a hash. Everything after "#" is never sent to the server, so
+  // hash links showed the homepage shell in every link preview and to every
+  // crawler. /r/<id> is a server-rendered route with its own title and card.
   const link =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/#/recipe/${recipe.id}`
-      : "";
+    typeof window !== "undefined" ? `${window.location.origin}/r/${recipe.id}` : "";
   const file = new File([blob], filename, { type: "image/jpeg" });
   const nav = navigator as Navigator & {
     canShare?: (data?: ShareData) => boolean;
@@ -1123,6 +1132,7 @@ export default function Home() {
           recipe={activeRecipe}
           onShare={() => setShareId(activeRecipe.id)}
           onBrew={() => setBrewId(activeRecipe.id)}
+          onBack={() => go("home")}
           sharePrompt={justPublishedId === activeRecipe.id}
           onDismissPrompt={() => setJustPublishedId("")}
         />
@@ -1498,6 +1508,19 @@ function Library({
   onCreate: () => void;
   onShare: (id: string) => void;
 }) {
+  // Titles that more than one recipe shares — "World Brewers Cup — 2016" and
+  // friends. Thirty cards with the same headline are unscannable, so those lead
+  // with the brewer's name instead. Detected from the data rather than guessed,
+  // so a genuinely distinct title is always left alone.
+  const titleTally = new Map<string, number>();
+  for (const recipe of allRecipes) {
+    const key = recipeTitle(recipe).toLowerCase();
+    titleTally.set(key, (titleTally.get(key) ?? 0) + 1);
+  }
+  const sharedTitles = new Set(
+    [...titleTally.entries()].filter(([, n]) => n > 1).map(([title]) => title),
+  );
+
   // Counts come off the unfiltered set so the numbers never move as you filter.
   const brewerCounts = new Map<string, number>();
   for (const recipe of allRecipes) {
@@ -1531,7 +1554,7 @@ function Library({
         <div>
           <p className="eyebrow">Brew recipe library</p>
           <h1 className="bloom-hero-title">
-            Brew, log, and share your favorite coffee recipes.
+            Any recipe, on your gear.
           </h1>
         </div>
         <button className="primary-button" onClick={onCreate}>
@@ -1603,6 +1626,7 @@ function Library({
             <RecipeCard
               key={recipe.id}
               recipe={recipe}
+              sharedTitle={sharedTitles.has(recipeTitle(recipe).toLowerCase())}
               onOpen={() => onOpen(recipe.id)}
               onShare={() => onShare(recipe.id)}
             />
@@ -1791,10 +1815,13 @@ function RecipeCard({
   recipe,
   onOpen,
   onShare,
+  sharedTitle = false,
 }: {
   recipe: Recipe;
   onOpen: () => void;
   onShare?: () => void;
+  /** True when other recipes carry the same title, so the title can't lead. */
+  sharedTitle?: boolean;
 }) {
   function handleCardKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
     if (event.key === "Enter" || event.key === " ") {
@@ -1825,16 +1852,31 @@ function RecipeCard({
       <div className="rc-body">
         <BrewerMark recipe={recipe} />
         <div className="rc-text">
-          <p className="rc-meta-line">{metaLine}</p>
-          <h3>{recipeTitle(recipe)}</h3>
-          {recipe.bean.trim() ? (
-            <p className="rc-bean">
-              {recipe.bean}
-              {author ? ` · ${author}` : ""}
-            </p>
-          ) : author ? (
-            <p className="rc-bean">{author}</p>
-          ) : null}
+          {/* When thirty recipes share a title, the title is not the thing that
+              tells them apart — the brewer is. Swap the hierarchy so the eye
+              lands on the differentiator first. */}
+          {sharedTitle && author ? (
+            <>
+              <p className="rc-meta-line">
+                {[metaLine, recipeTitle(recipe)].filter(Boolean).join(" · ")}
+              </p>
+              <h3>{author}</h3>
+              {recipe.bean.trim() ? <p className="rc-bean">{recipe.bean}</p> : null}
+            </>
+          ) : (
+            <>
+              <p className="rc-meta-line">{metaLine}</p>
+              <h3>{recipeTitle(recipe)}</h3>
+              {recipe.bean.trim() ? (
+                <p className="rc-bean">
+                  {recipe.bean}
+                  {author ? ` · ${author}` : ""}
+                </p>
+              ) : author ? (
+                <p className="rc-bean">{author}</p>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
       <div className="recipe-stats">
@@ -2384,17 +2426,32 @@ function RecipePage({
   recipe,
   onShare,
   onBrew,
+  onBack,
   sharePrompt = false,
   onDismissPrompt,
 }: {
   recipe: Recipe;
   onShare: () => void;
   onBrew: () => void;
+  onBack: () => void;
   sharePrompt?: boolean;
   onDismissPrompt?: () => void;
 }) {
   const [isSharing, setIsSharing] = useState(false);
   const quickBlobRef = useRef<Blob | null>(null);
+
+  // Dose the reader is actually brewing. Starts at the published dose; every
+  // pour target follows it. Adjusted during render rather than in an effect when
+  // the recipe changes, which is the documented pattern and avoids a wasted
+  // render showing the previous recipe's dose.
+  const [dose, setDose] = useState(recipe.dose);
+  const [doseFor, setDoseFor] = useState(recipe.id);
+  if (doseFor !== recipe.id) {
+    setDoseFor(recipe.id);
+    setDose(recipe.dose);
+  }
+
+  const scaled = useMemo(() => scaleRecipe(recipe, dose), [recipe, dose]);
 
   // Pre-render the default share card the moment the page loads, so tapping
   // Share opens the native sheet instantly (and inside the tap gesture).
@@ -2444,8 +2501,16 @@ function RecipePage({
         </div>
       ) : null}
       <div className="recipe-actions">
-        <div>
-          <p className="eyebrow share-path">/{slugify(recipe.creator) || "guest"}/{recipe.id}</p>
+        <div className="recipe-actions-lead">
+          <button
+            className="back-button"
+            aria-label="Back to the library"
+            onClick={onBack}
+          >
+            ←
+          </button>
+          {/* The real shareable path, so what you read matches what you'd copy. */}
+          <p className="eyebrow share-path">/r/{recipe.id}</p>
         </div>
         <div className="action-group">
           <button className="primary-button" onClick={onBrew}>
@@ -2457,8 +2522,15 @@ function RecipePage({
         </div>
       </div>
       <div className="public-recipe">
-        <RecipeHeader recipe={recipe} />
-        <Timeline recipe={recipe} />
+        <RecipeHeader recipe={scaled} />
+        <DoseScaler
+          published={recipe.dose}
+          dose={dose}
+          water={scaled.water}
+          onChange={setDose}
+        />
+        <GrindTranslation recipe={recipe} />
+        <Timeline recipe={scaled} />
       </div>
       <button className="customize-link" onClick={onShare}>
         Customize with a photo →
@@ -2986,6 +3058,7 @@ function BrewMode({
             <div><span>Water</span><strong>{scaledWater ? `${scaledWater}g` : "—"}</strong></div>
             <div><span>Target</span><strong>{formatTime(total)}</strong></div>
           </div>
+          <TasteLoop />
           <button className="primary-button brew-start" onClick={onShare}>
             📸 Share your brew
           </button>
@@ -3003,6 +3076,50 @@ function BrewMode({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   Taste loop
+
+   The one thing every brew logger got wrong: logging asks for data entry now
+   and pays off vaguely, later. This asks a single question the moment the cup
+   is in your hand, and answers it with one concrete move in your own clicks.
+
+   Deliberately one variable at a time. Changing grind, temperature and ratio
+   together is the most common home-brewing mistake and it teaches nothing.
+   ------------------------------------------------------------------------- */
+
+function TasteLoop() {
+  const [verdict, setVerdict] = useState<Verdict | null>(null);
+  const [myGrinder] = useMyGrinder();
+
+  const advice = verdict ? tasteAdvice(verdict, myGrinder) : null;
+
+  return (
+    <section className="taste-loop">
+      {advice ? (
+        <div className="taste-result">
+          <span className="taste-diagnosis">{advice.diagnosis}</span>
+          <strong>{advice.headline}</strong>
+          <p>{advice.detail}</p>
+          <button className="ghost-button" onClick={() => setVerdict(null)}>
+            Back
+          </button>
+        </div>
+      ) : (
+        <>
+          <span className="taste-prompt">How did it taste?</span>
+          <div className="taste-options">
+            {tasteVerdicts.map((option) => (
+              <button key={option.id} onClick={() => setVerdict(option.id)}>
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -3037,6 +3154,190 @@ function RecipeHeader({ recipe, compact = false }: { recipe: Recipe; compact?: b
             <span key={item}>{item}</span>
           ))}
         </div>
+      ) : null}
+    </section>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   Grind translation
+
+   The reason a shared recipe is usually useless: it was written for someone
+   else's grinder. "Fine" on a V60 means fine *for a V60* — nowhere near the
+   absolute Fine bucket — so the reader has to guess. This panel does the guess
+   for them, in their own clicks, and says how much to trust it.
+
+   The chosen grinder is stored under one key that the /r/<id> page reads too,
+   so setting it once sets it everywhere. No account, no sync.
+   ------------------------------------------------------------------------- */
+
+function GrindTranslation({ recipe }: { recipe: Recipe }) {
+  const [myGrinder, choose] = useMyGrinder();
+  const [open, setOpen] = useState(false);
+
+  const published = recipe.grinder.trim() && recipe.clicks.trim()
+    ? `${recipe.clicks.trim()} on a ${recipe.grinder.trim()}`
+    : recipe.grind || "";
+
+  const translation = useMemo(
+    () =>
+      myGrinder
+        ? translateGrind(
+            {
+              brewer: recipe.brewer,
+              grind: recipe.grind,
+              grinder: recipe.grinder,
+              clicks: recipe.clicks,
+            },
+            myGrinder,
+          )
+        : null,
+    [recipe.brewer, recipe.grind, recipe.grinder, recipe.clicks, myGrinder],
+  );
+
+  // Nothing to translate and nothing published — don't show an empty panel.
+  if (!published && !translation?.ok) return null;
+
+  const sameGrinder =
+    myGrinder && recipe.grinder.trim().toLowerCase() === myGrinder.toLowerCase();
+
+  return (
+    <section className="translate-panel">
+      <div className="translate-row">
+        <div className="translate-value">
+          <span className="translate-label">Grind</span>
+          <strong>{translation?.ok ? translation.display : published || "Not specified"}</strong>
+          {translation?.ok && !sameGrinder ? (
+            <span className="translate-sub">
+              on your {translation.grinderName}
+              {published ? ` · published as ${published}` : ""}
+            </span>
+          ) : null}
+        </div>
+        <button
+          className="translate-toggle"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+        >
+          {myGrinder ? "Change grinder" : "Convert to my grinder"}
+        </button>
+      </div>
+
+      {open ? (
+        <div className="translate-picker">
+          <label htmlFor="my-grinder">Your grinder</label>
+          <select
+            id="my-grinder"
+            value={myGrinder}
+            onChange={(event) => choose(event.target.value)}
+          >
+            <option value="">Not set</option>
+            {grinderNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+          <p className="translate-hint">
+            Saved on this device only, and reused on every recipe.
+          </p>
+        </div>
+      ) : null}
+
+      {translation && !translation.ok && translation.reason === "out-of-range" ? (
+        <p className="translate-caveat">
+          This grind sits outside your grinder&apos;s usable range.
+        </p>
+      ) : null}
+
+      {translation?.ok && translation.caveats.length ? (
+        <div className="translate-caveats">
+          {translation.caveats.map((caveat) => (
+            <p key={caveat} className="translate-caveat">
+              {caveat}
+            </p>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   Dose scaler
+
+   Recipes are published at the author's dose; people brew at their own. Scaling
+   by hand across every pour is the most common reason a good recipe gets
+   abandoned halfway. Ratio holds, water and every pour target scale, times do
+   not — they are physical, not proportional.
+   ------------------------------------------------------------------------- */
+
+function scaleTimelineTarget(target: string, factor: number) {
+  // Targets are free text like "150", "150 g", "to 300g". Scale the numbers and
+  // leave everything else exactly as the author wrote it.
+  return target.replace(/\d+(?:\.\d+)?/g, (match) => {
+    const scaled = Number.parseFloat(match) * factor;
+    return String(Math.round(scaled));
+  });
+}
+
+function scaleRecipe(recipe: Recipe, dose: number): Recipe {
+  if (!recipe.dose || dose === recipe.dose) return recipe;
+  const factor = dose / recipe.dose;
+  return {
+    ...recipe,
+    dose: Math.round(dose * 10) / 10,
+    water: Math.round(recipe.water * factor),
+    timeline: recipe.timeline.map((event) => ({
+      ...event,
+      target: event.target ? scaleTimelineTarget(event.target, factor) : event.target,
+    })),
+  };
+}
+
+function DoseScaler({
+  published,
+  dose,
+  water,
+  onChange,
+}: {
+  published: number;
+  dose: number;
+  water: number;
+  onChange: (next: number) => void;
+}) {
+  if (!published) return null;
+  const step = 1;
+  const min = 8;
+  const max = 60;
+
+  return (
+    <section className="dose-scaler">
+      <span className="translate-label">Brewing</span>
+      <div className="dose-stepper">
+        <button
+          aria-label="Less coffee"
+          disabled={dose <= min}
+          onClick={() => onChange(Math.max(min, Math.round((dose - step) * 10) / 10))}
+        >
+          −
+        </button>
+        <strong>{dose}g</strong>
+        <button
+          aria-label="More coffee"
+          disabled={dose >= max}
+          onClick={() => onChange(Math.min(max, Math.round((dose + step) * 10) / 10))}
+        >
+          +
+        </button>
+      </div>
+      <span className="dose-note">
+        {dose === published ? "as published" : `${water}g water · scaled from ${published}g`}
+      </span>
+      {dose !== published ? (
+        <button className="dose-reset" onClick={() => onChange(published)}>
+          Reset
+        </button>
       ) : null}
     </section>
   );

@@ -1138,11 +1138,22 @@ label {
 
 /* Compact product direction */
 .site-masthead {
-  background: rgba(255, 255, 255, 0.9);
+  /* Opaque on purpose. At 0.9 alpha the recipe page's Brew / Share row and the
+     share path bled through as they scrolled underneath, which read as clipped
+     buttons sitting inside the masthead. A blur is applied where supported so
+     it still feels light. */
+  background: #fffdf9;
   border-bottom: 1px solid var(--rule);
   position: sticky;
   top: 0;
   z-index: 20;
+}
+
+@supports (backdrop-filter: blur(12px)) {
+  .site-masthead {
+    background: rgba(255, 253, 249, 0.86);
+    backdrop-filter: blur(12px) saturate(1.4);
+  }
 }
 
 .masthead-inner {
@@ -3978,4 +3989,276 @@ select {
 .stats-empty p:last-child {
   margin: 0;
   color: var(--ink-2);
+}
+
+/* ===========================================================================
+   Translation, dose scaling and the taste loop
+
+   Added alongside the /r/<id> share route. Visual language deliberately matches
+   the existing grind-strip and metric rows — hairline rules, oat surfaces, no
+   new colours — so these read as part of the recipe rather than bolted on.
+   ========================================================================= */
+
+.recipe-actions-lead {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+.back-button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--rule-2);
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 1rem;
+  height: 34px;
+  justify-content: center;
+  line-height: 1;
+  transition: background 140ms ease;
+  width: 34px;
+}
+
+.back-button:hover {
+  background: var(--bone);
+}
+
+.translate-panel {
+  border-top: 1px solid var(--rule);
+  margin-top: 22px;
+  padding-top: 18px;
+}
+
+.translate-row {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.translate-label {
+  color: var(--ink-2);
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.translate-value strong {
+  display: block;
+  font-size: 1.42rem;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.translate-sub {
+  color: var(--ink-2);
+  display: block;
+  font-size: 0.85rem;
+  margin-top: 3px;
+}
+
+.translate-toggle {
+  background: transparent;
+  border: 1px solid var(--rule-2);
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  padding: 8px 13px;
+  transition: background 140ms ease;
+}
+
+.translate-toggle:hover {
+  background: var(--bone);
+}
+
+.translate-picker {
+  margin-top: 14px;
+}
+
+.translate-picker label {
+  color: var(--ink-2);
+  display: block;
+  font-size: 0.82rem;
+  margin-bottom: 5px;
+}
+
+.translate-picker select {
+  background: var(--card);
+  border: 1px solid var(--rule-2);
+  border-radius: 8px;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  max-width: 320px;
+  padding: 9px 11px;
+  width: 100%;
+}
+
+.translate-hint {
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  margin-top: 6px;
+}
+
+.translate-caveats {
+  background: var(--oat);
+  border-radius: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+}
+
+.translate-caveat {
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin: 2px 0;
+}
+
+.dose-scaler {
+  align-items: center;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 18px;
+}
+
+.dose-scaler .translate-label {
+  display: inline-block;
+}
+
+.dose-stepper {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
+.dose-stepper button {
+  background: transparent;
+  border: 1px solid var(--rule-2);
+  border-radius: 7px;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 1.05rem;
+  height: 32px;
+  line-height: 1;
+  transition: background 140ms ease;
+  width: 32px;
+}
+
+.dose-stepper button:hover:not(:disabled) {
+  background: var(--bone);
+}
+
+.dose-stepper button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.dose-stepper strong {
+  display: inline-block;
+  font-size: 1.2rem;
+  font-weight: 500;
+  min-width: 56px;
+  text-align: center;
+}
+
+.dose-note {
+  color: var(--ink-2);
+  font-size: 0.83rem;
+}
+
+.dose-reset {
+  background: transparent;
+  border: none;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: 0.83rem;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.taste-loop {
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  margin: 22px 0 18px;
+  padding-top: 18px;
+  text-align: center;
+  width: 100%;
+}
+
+.taste-prompt {
+  display: block;
+  font-size: 0.92rem;
+  margin-bottom: 12px;
+  opacity: 0.75;
+}
+
+.taste-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.taste-options button,
+.taste-result .ghost-button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  color: inherit;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  padding: 8px 15px;
+  transition: background 140ms ease;
+}
+
+.taste-options button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.taste-result {
+  margin: 0 auto;
+  max-width: 380px;
+}
+
+.taste-diagnosis {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  opacity: 0.6;
+  text-transform: uppercase;
+}
+
+.taste-result strong {
+  display: block;
+  font-size: 1.22rem;
+  font-weight: 500;
+  margin: 6px 0 8px;
+}
+
+.taste-result p {
+  font-size: 0.88rem;
+  line-height: 1.55;
+  margin-bottom: 14px;
+  opacity: 0.8;
+}
+
+@media (max-width: 640px) {
+  .translate-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .translate-toggle {
+    align-self: flex-start;
+  }
 }

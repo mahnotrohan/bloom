@@ -8,10 +8,15 @@ const hankenGrotesk = Hanken_Grotesk({
   display: "swap",
 });
 
-const siteTitle = "Bloom - Coffee Recipe Library";
-const siteDescription = "Bloom is a recipe builder and shared library for coffee.";
+const siteTitle = "Bloom — Any recipe, on your gear";
+const siteDescription =
+  "A shared library of coffee recipes that converts to your own grinder and dose. Brew along with a guided timer.";
 
 export const metadata: Metadata = {
+  // Required so the per-recipe opengraph-image resolves to an absolute URL.
+  // Crawlers and link-preview bots reject relative image paths, which would
+  // silently undo the whole point of /r/<id>.
+  metadataBase: new URL("https://bloom.rohanmahnot.space"),
   title: siteTitle,
   description: siteDescription,
   openGraph: {

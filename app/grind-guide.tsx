@@ -11,155 +11,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
    settings, Bloom's own label) is derived from that one number.
    ========================================================================== */
 
-const MIN_MICRONS = 100;
-const MAX_MICRONS = 1500;
-
-/** Descriptive bands with a household reference for each. */
-const bands = [
-  { max: 250, label: "Extra fine", like: "powdered sugar" },
-  { max: 450, label: "Fine", like: "table salt" },
-  { max: 650, label: "Medium-fine", like: "beach sand" },
-  { max: 900, label: "Medium", like: "coarse sand" },
-  { max: 1100, label: "Medium-coarse", like: "raw / demerara sugar" },
-  { max: MAX_MICRONS, label: "Coarse", like: "flaky sea salt" },
-] as const;
-
-/**
- * Bloom stores grind as one of five values. This maps the continuum back onto
- * them so the guide can tell you what to pick in the builder.
- */
-const bloomBuckets = [
-  { max: 420, label: "Fine" },
-  { max: 660, label: "Medium-Fine" },
-  { max: 900, label: "Medium" },
-  { max: 1120, label: "Medium-Coarse" },
-  { max: MAX_MICRONS, label: "Coarse" },
-] as const;
-
-type Method = {
-  name: string;
-  low: number;
-  high: number;
-  /** Shown when the method is the closest match to the current setting. */
-  note: string;
-};
-
-/**
- * Working ranges, not laws. Where sources disagree the range is widened rather
- * than averaged — AeroPress genuinely spans espresso-fine to French-press-coarse
- * depending on the recipe.
- */
-const methods: Method[] = [
-  { name: "Ibrik / Turkish", low: 100, high: 250, note: "Finer than espresso — flour-like, no grit between the fingers." },
-  { name: "Espresso", low: 200, high: 380, note: "Dial by shot time, not by number. Clumps when squeezed." },
-  { name: "Moka pot", low: 350, high: 500, note: "A touch coarser than espresso, or the basket chokes." },
-  { name: "SIF (South Indian filter)", low: 400, high: 620, note: "Fine but free-flowing; too fine and the drip stalls overnight." },
-  { name: "AeroPress", low: 450, high: 900, note: "Widest range of any brewer — fine for short steeps, coarse for long ones." },
-  { name: "Cafec Deep 27", low: 550, high: 750, note: "Deep cone wants a little finer than a standard V60." },
-  { name: "V60", low: 600, high: 850, note: "Drawdown around 2:30–3:30 for a 15 g brew is the tell." },
-  { name: "Origami Dripper", low: 650, high: 900, note: "Ribs speed drawdown — go a step finer than you'd expect." },
-  { name: "Kalita Wave", low: 700, high: 900, note: "Flat bed is forgiving; coarser than a cone at the same dose." },
-  { name: "Chemex", low: 800, high: 1000, note: "Thick filter is slow, so the grind has to open up." },
-  { name: "French Press", low: 1000, high: 1250, note: "Coarse enough that fines don't slip past the mesh." },
-  { name: "Cold brew", low: 1150, high: 1500, note: "Coarsest of all — hours of contact do the extracting." },
-];
-
-type Grinder =
-  | { name: string; kind: "clicks"; perClick: number; max: number; note: string }
-  | {
-      name: string;
-      kind: "steps";
-      anchors: [number, number][];
-      min: number;
-      max: number;
-      step: number;
-      note: string;
-    };
-
-/**
- * Hand grinders are close to linear from burr-touch, so a micron-per-click
- * figure is honest. Stepped electrics aren't, so those are interpolated between
- * measured anchor points instead of pretending a formula exists.
- */
-const grinders: Grinder[] = [
-  { name: "Comandante C40", kind: "clicks", perClick: 30, max: 50, note: "~30 µm / click" },
-  { name: "1Zpresso K-Ultra", kind: "clicks", perClick: 12.5, max: 130, note: "12.5 µm / click" },
-  { name: "1Zpresso JX-Pro", kind: "clicks", perClick: 12.5, max: 130, note: "12.5 µm / click" },
-  { name: "1Zpresso K-Plus", kind: "clicks", perClick: 22, max: 90, note: "22 µm / click" },
-  { name: "Timemore C2 / C3", kind: "clicks", perClick: 30, max: 50, note: "~30 µm / click" },
-  { name: "Kingrinder K6", kind: "clicks", perClick: 16, max: 120, note: "16 µm / click" },
-  {
-    name: "Baratza Encore",
-    kind: "steps",
-    anchors: [
-      [250, 3],
-      [450, 9],
-      [700, 15],
-      [900, 21],
-      [1100, 29],
-      [1400, 38],
-    ],
-    min: 1,
-    max: 40,
-    step: 1,
-    note: "40 stepped positions",
-  },
-  {
-    name: "Fellow Ode Gen 2",
-    kind: "steps",
-    anchors: [
-      [400, 1.5],
-      [600, 2.5],
-      [800, 4],
-      [1000, 6],
-      [1200, 8],
-      [1400, 10.5],
-    ],
-    min: 1,
-    max: 11,
-    step: 0.5,
-    note: "11 marked stops, half-steps usable",
-  },
-];
-
-function bandFor(microns: number) {
-  return bands.find((b) => microns <= b.max) ?? bands[bands.length - 1];
-}
-
-function bloomLabelFor(microns: number) {
-  return (bloomBuckets.find((b) => microns <= b.max) ?? bloomBuckets[bloomBuckets.length - 1]).label;
-}
-
-/** Distance from a range, used to rank which brewers actually fit. */
-function distanceFromRange(microns: number, low: number, high: number) {
-  if (microns < low) return low - microns;
-  if (microns > high) return microns - high;
-  return 0;
-}
-
-function settingFor(grinder: Grinder, microns: number) {
-  if (grinder.kind === "clicks") {
-    const raw = microns / grinder.perClick;
-    if (raw > grinder.max) return null;
-    return { value: Math.round(raw), unit: "clicks" as const };
-  }
-  const { anchors } = grinder;
-  if (microns <= anchors[0][0]) {
-    return microns < anchors[0][0] * 0.75 ? null : { value: anchors[0][1], unit: "setting" as const };
-  }
-  for (let i = 0; i < anchors.length - 1; i += 1) {
-    const [x0, y0] = anchors[i];
-    const [x1, y1] = anchors[i + 1];
-    if (microns <= x1) {
-      const t = (microns - x0) / (x1 - x0);
-      const raw = y0 + t * (y1 - y0);
-      const snapped = Math.round(raw / grinder.step) * grinder.step;
-      const clamped = Math.min(grinder.max, Math.max(grinder.min, snapped));
-      return { value: Number(clamped.toFixed(1)), unit: "setting" as const };
-    }
-  }
-  return { value: grinder.max, unit: "setting" as const };
-}
+/* Shared grind model. These tables used to live here; they now live in
+   app/lib/grind.ts so the recipe page, the share card and this guide cannot
+   drift apart. */
+import {
+  MIN_MICRONS,
+  MAX_MICRONS,
+  methods,
+  grinders,
+  bandFor,
+  bloomLabelFor,
+  distanceFromRange,
+  settingFor,
+} from "./lib/grind";
 
 /* ---------------------------------------------------------------------------
    Particle field
