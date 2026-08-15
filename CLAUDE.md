@@ -22,8 +22,23 @@ resolves as a legacy alias).
 
 Vite + React (the `vinext` starter) deployed as a **Cloudflare Worker**, with
 **D1** for recipe storage and **Workers Analytics Engine** for events. Single
-font: Hanken Grotesk (a free Graphik-alike). Tailwind is present but almost all
-styling is hand-written CSS in `app/globals.css`.
+font: Roboto (Material 3's typeface — static weights 400/500/700/900 only; the
+static family has no 600/800, so don't ask `next/font` for them). Tailwind is
+present but almost all styling is hand-written CSS in `app/globals.css`.
+
+**Design system (Aug 2026): Material 3 "All sage", locked.** `globals.css` is a
+stack of dated passes; the final pass re-voices the app as Google Material 3
+Expressive on a tonal palette seeded from Bloom's sage (`#7D9B76`) — sage
+containers + warm neutrals, deliberately **no second hue** ("All sage" was
+chosen over Sage & Honey / Sage & Clay). The `:root` block maps the legacy
+token names (`--oat/--ink/--teal/--cadmium/--amber`) onto M3 roles so every
+older pass re-themes without edits — change colors there, not in rules. Controls
+sit on a 44px full-radius rhythm; selected chips are tonal
+(`--secondary-container`), never inverted-black; labels are sentence case
+(the old spaced-caps voice is retired). The `/r/<id>` pages and both share-image
+canvases carry the same palette as hardcoded constants — retheme those when
+retheming. Mockups + handoff spec live in the "Bloom" Claude project
+(`platform-final.html`, `redesign-handoff-spec.md`).
 
 Nearly the whole app is one file: `app/page.tsx` (~3400 lines). It is a
 hash-routed SPA — views are `home`, `recipe`, `builder`, `about`, `grind`,

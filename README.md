@@ -4,10 +4,11 @@ Bloom is a universal coffee recipe platform — a responsive web app with a shar
 recipe library, a structured recipe builder, visual brew timelines, server-backed
 publishing (Cloudflare D1), creator profiles, and print styling.
 
-The current visual direction follows the **Bloom** style guide: a muted
-oat and clay palette, editorial masthead, Fraunces/Space Mono/Inter typography,
-paper texture, spec ledgers, and a musical-notation-inspired `Brew Score`
-timeline.
+The current visual direction is **Material 3 "All sage"** (locked Aug 2026):
+Google's Material 3 Expressive re-voiced onto a tonal palette seeded from
+Bloom's sage green — tonal containers instead of rules, full-radius controls,
+Roboto, sentence-case labels, and a single sage accent. See `CLAUDE.md` for the
+token map and the design-system notes.
 
 ## What Is Included
 

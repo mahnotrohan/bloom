@@ -17,12 +17,12 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "Bloom coffee recipe";
 
-const paper = "#f7f5f0";
-const ink = "#2c2c2a";
-const muted = "#888780";
-const soft = "#5f5e5a";
-const rule = "#d3d1c7";
-const accent = "#d85a30";
+const paper = "#f8faf0";
+const ink = "#1a1c17";
+const muted = "#6b7163";
+const soft = "#43483e";
+const rule = "#c9cdbf";
+const accent = "#456743";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (

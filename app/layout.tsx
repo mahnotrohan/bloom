@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
-import { Hanken_Grotesk } from "next/font/google";
+import { Roboto } from "next/font/google";
 import "./globals.css";
 
-const hankenGrotesk = Hanken_Grotesk({
-  variable: "--font-hanken",
+// Material 3's own typeface. Static weights only — Roboto's static set has no
+// 600/800, so the design system uses 400/500/700 (M3's Regular/Medium/Bold)
+// and 800 in CSS falls through to 700+synthesis where the axis is missing.
+const roboto = Roboto({
+  variable: "--font-roboto",
   subsets: ["latin"],
+  weight: ["400", "500", "700", "900"],
   display: "swap",
 });
 
@@ -44,7 +48,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${hankenGrotesk.variable} antialiased`}
+        className={`${roboto.variable} antialiased`}
       >
         {children}
         {/* Cloudflare Web Analytics — visitor counts, top pages, referrers.

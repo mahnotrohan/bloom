@@ -334,7 +334,7 @@ function wrapCanvasText(
   return lines;
 }
 
-const SHARE_ACCENT_FALLBACK = "#486c63";
+const SHARE_ACCENT_FALLBACK = "#456743";
 
 // Draws a mobile-first, shareable "story" image (1080x1920) for a recipe.
 async function renderRecipeImage(recipe: Recipe): Promise<Blob> {
@@ -342,11 +342,11 @@ async function renderRecipeImage(recipe: Recipe): Promise<Blob> {
   const H = 1920;
   const P = 80;
   const inner = W - P * 2;
-  const INK = "#20201e";
-  const INK2 = "#6e6b66";
-  const RULE = "#e5ddd2";
+  const INK = "#1a1c17";
+  const INK2 = "#43483e";
+  const RULE = "#c4c8bb";
   const accent = brewerAccent[recipe.brewer] ?? SHARE_ACCENT_FALLBACK;
-  const font = (spec: string) => `${spec} 'Hanken Grotesk', Arial, sans-serif`;
+  const font = (spec: string) => `${spec} 'Roboto', Arial, sans-serif`;
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
@@ -354,7 +354,7 @@ async function renderRecipeImage(recipe: Recipe): Promise<Blob> {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas is unavailable");
 
-  ctx.fillStyle = "#f7f5f2";
+  ctx.fillStyle = "#f8faf0";
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = accent;
   ctx.fillRect(0, 0, W, 16);
@@ -441,11 +441,11 @@ async function renderRecipeImage(recipe: Recipe): Promise<Blob> {
     steps.forEach((step, i) => {
       const sy = firstY + i * stepH;
       const readout = `${eventWindowLabel(steps, i)} · ${timelineScaleLabel(steps, i)}`;
-      ctx.fillStyle = isDrawdownEvent(step) ? accent : "#d89b45";
+      ctx.fillStyle = isDrawdownEvent(step) ? accent : "#7d9b76";
       ctx.beginPath();
       ctx.arc(lineX, sy, 15, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "#f7f5f2";
+      ctx.strokeStyle = "#f8faf0";
       ctx.lineWidth = 6;
       ctx.stroke();
 
@@ -601,7 +601,7 @@ async function renderPhotoShareImage(
   const W = 1080;
   const H = format === "story" ? 1920 : 1080;
   const accent = brewerAccent[recipe.brewer] ?? SHARE_ACCENT_FALLBACK;
-  const font = (spec: string) => `${spec} 'Hanken Grotesk', Arial, sans-serif`;
+  const font = (spec: string) => `${spec} 'Roboto', Arial, sans-serif`;
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
@@ -636,7 +636,7 @@ async function renderPhotoShareImage(
 
   const drawStatCells = (top: number, innerH: number) => {
     const cellW = (W - 112) / stats.length;
-    ctx.strokeStyle = "#e5ddd2";
+    ctx.strokeStyle = "#c4c8bb";
     ctx.lineWidth = 2;
     stats.forEach(([label, value], i) => {
       const cx = 56 + i * cellW;
@@ -646,10 +646,10 @@ async function renderPhotoShareImage(
         ctx.lineTo(cx, top + innerH);
         ctx.stroke();
       }
-      ctx.fillStyle = "#6e6b66";
+      ctx.fillStyle = "#43483e";
       ctx.font = font("700 22px");
       ctx.fillText(label, cx + (i ? 28 : 0), top + 34);
-      ctx.fillStyle = "#20201e";
+      ctx.fillStyle = "#1a1c17";
       ctx.font = font("700 42px");
       ctx.fillText(value, cx + (i ? 28 : 0), top + 92);
     });
@@ -658,38 +658,38 @@ async function renderPhotoShareImage(
   if (style === "bar") {
     const barH = 258;
     const top = H - barH;
-    ctx.fillStyle = "rgba(250, 248, 244, 0.96)";
+    ctx.fillStyle = "rgba(248, 250, 240, 0.96)";
     ctx.fillRect(0, top, W, barH);
     ctx.fillStyle = accent;
     ctx.fillRect(0, top, W, 10);
-    ctx.fillStyle = "#20201e";
+    ctx.fillStyle = "#1a1c17";
     ctx.font = font("700 38px");
     ctx.fillText(wrapCanvasText(ctx, `${title} — ${recipe.brewer}`, W - 112)[0], 56, top + 72);
     drawStatCells(top + 104, barH - 134);
   } else if (style === "top") {
     const barH = 300;
-    ctx.fillStyle = "rgba(250, 248, 244, 0.96)";
+    ctx.fillStyle = "rgba(248, 250, 240, 0.96)";
     ctx.fillRect(0, 0, W, barH);
     ctx.fillStyle = accent;
     ctx.fillRect(0, barH - 10, W, 10);
-    ctx.fillStyle = "#486c63";
+    ctx.fillStyle = "#456743";
     ctx.font = font("800 24px");
     ctx.fillText(byline.toUpperCase(), 56, 62);
-    ctx.fillStyle = "#20201e";
+    ctx.fillStyle = "#1a1c17";
     ctx.font = font("700 38px");
     ctx.fillText(wrapCanvasText(ctx, title, W - 112)[0], 56, 118);
     drawStatCells(150, 116);
   } else if (style === "rail") {
     const bandH = 322;
     const top = H - bandH;
-    ctx.fillStyle = "rgba(250, 248, 244, 0.96)";
+    ctx.fillStyle = "rgba(248, 250, 240, 0.96)";
     ctx.fillRect(0, top, W, bandH);
     ctx.fillStyle = accent;
     ctx.fillRect(0, top, W, 10);
-    ctx.fillStyle = "#20201e";
+    ctx.fillStyle = "#1a1c17";
     ctx.font = font("700 38px");
     ctx.fillText(wrapCanvasText(ctx, title, W - 112)[0], 56, top + 70);
-    ctx.fillStyle = "#6e6b66";
+    ctx.fillStyle = "#43483e";
     ctx.font = font("600 26px");
     ctx.fillText(byline, 56, top + 110);
 
@@ -699,7 +699,7 @@ async function renderPhotoShareImage(
       const left = 90;
       const right = W - 90;
       const lineY = top + 218;
-      ctx.strokeStyle = "#d8cfc3";
+      ctx.strokeStyle = "#c4c8bb";
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(left, lineY);
@@ -710,19 +710,19 @@ async function renderPhotoShareImage(
         const start = eventStart(recipe.timeline, i);
         const x = left + (start / total) * (right - left);
         const isEnd = isDrawdownEvent(step) || step.range;
-        ctx.fillStyle = isEnd ? "#486c63" : "#d89b45";
+        ctx.fillStyle = isEnd ? "#456743" : "#7d9b76";
         ctx.beginPath();
         ctx.arc(x, lineY, 13, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = "#faf8f4";
+        ctx.strokeStyle = "#f8faf0";
         ctx.lineWidth = 5;
         ctx.stroke();
         const num = targetNumber(step.target);
         const label = step.target.trim() && num !== null ? `${num}g` : step.type.toLowerCase();
-        ctx.fillStyle = "#20201e";
+        ctx.fillStyle = "#1a1c17";
         ctx.font = font("800 24px");
         ctx.fillText(label, x, lineY - 32);
-        ctx.fillStyle = "#6e6b66";
+        ctx.fillStyle = "#43483e";
         ctx.font = font("600 21px");
         ctx.fillText(formatTime(start), x, lineY + 46);
       });
@@ -740,7 +740,7 @@ async function renderPhotoShareImage(
     ctx.font = font("800 84px");
     const titleLines = wrapCanvasText(ctx, title, W - 112).slice(0, 2);
     let y = H - 96 - titleLines.length * 92;
-    ctx.fillStyle = "#e9c98a";
+    ctx.fillStyle = "#c6efc0";
     ctx.font = font("800 28px");
     ctx.fillText(byline.toUpperCase(), 56, y - 24);
     ctx.fillStyle = "#ffffff";
@@ -1281,6 +1281,23 @@ function Header({
     <header className="site-masthead">
       <div className="masthead-inner">
         <button className="brand-lockup" onClick={onHome}>
+          {/* Five-petal bloom mark, drawn in the primary sage. */}
+          <svg
+            className="brand-mark"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <g fill="currentColor">
+              <circle cx="12" cy="5.8" r="3.5" />
+              <circle cx="6.2" cy="10" r="3.5" />
+              <circle cx="17.8" cy="10" r="3.5" />
+              <circle cx="8.4" cy="16.7" r="3.5" />
+              <circle cx="15.6" cy="16.7" r="3.5" />
+              <circle cx="12" cy="11.7" r="2.2" fill="var(--oat)" opacity="0.9" />
+            </g>
+          </svg>
           <strong>Bloom</strong>
         </button>
         <nav className="site-nav" aria-label="Primary navigation">

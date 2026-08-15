@@ -1,21 +1,43 @@
 @import "tailwindcss";
 
 :root {
-  --oat: #f7f5f2;
-  --bone: #fbfaf8;
+  /* =========================================================================
+     Material 3 "All sage" ramp (locked Aug 2026).
+     Tonal palette seeded from Bloom's sage (#7D9B76), mapped onto the legacy
+     token names so every earlier pass re-themes without touching its rules:
+       oat   → surface           bone  → surface-container-low
+       card  → surface-container-lowest (white)
+       ink   → on-surface        ink-2 → on-surface-variant
+       rule  → hairline outline  rule-2 → outline-variant
+       cadmium / teal → primary  amber → primary (single-accent system)
+     ======================================================================= */
+  --oat: #f8faf0;
+  --bone: #f2f4ea;
   --card: #ffffff;
-  --ink: #20201e;
-  --ink-2: #6e6b66;
-  --rule: #e5ddd2;
-  --rule-2: #d8cfc3;
-  --cadmium: #20201e;
-  --cadmium-deep: #3d3c39;
-  --teal: #486c63;
-  --teal-soft: #6f8a84;
-  --amber: #d89b45;
-  --serif: var(--font-hanken), system-ui, sans-serif;
-  --mono: var(--font-hanken), system-ui, sans-serif;
-  --sans: var(--font-hanken), system-ui, sans-serif;
+  --ink: #1a1c17;
+  --ink-2: #43483e;
+  --rule: #dde1d4;
+  --rule-2: #c4c8bb;
+  --cadmium: #456743;
+  --cadmium-deep: #385837;
+  --teal: #456743;
+  --teal-soft: #6f8a6c;
+  --amber: #456743;
+  /* M3 role tokens for the All-sage pass at the end of this file. */
+  --primary: #456743;
+  --on-primary: #ffffff;
+  --primary-container: #c6efc0;
+  --on-primary-container: #032d08;
+  --secondary-container: #d5e8ce;
+  --on-secondary-container: #101f0d;
+  --surface-container: #eceee4;
+  --surface-container-high: #e6e9df;
+  --surface-container-highest: #e1e3d9;
+  --outline: #74796d;
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --serif: var(--font-roboto), system-ui, sans-serif;
+  --mono: var(--font-roboto), system-ui, sans-serif;
+  --sans: var(--font-roboto), system-ui, sans-serif;
   --background: var(--oat);
   --foreground: var(--ink);
 }
@@ -3156,9 +3178,9 @@ select {
    size and space rather than a second typeface. No new palette. */
 
 :root {
-  --hairline: #f0ebe3;
-  --ink-3: #8d8a84;
-  --ink-4: #a8a49c;
+  --hairline: #edf0e5;
+  --ink-3: #5d6456;
+  --ink-4: #878d7d;
 }
 
 /* --- Filter bar: buttons, not dropdowns --- */
@@ -4498,4 +4520,812 @@ select {
   color: var(--ink);
   font-size: 0.78rem;
   font-weight: 500;
+}
+
+/* ===========================================================================
+   MATERIAL 3 "ALL SAGE" PASS (Aug 2026) — the approved redesign, end to end.
+
+   Google Material 3 Expressive re-voiced onto the sage tonal ramp declared in
+   :root. One accent (--primary sage), tonal containers instead of borders,
+   full-radius controls on a 44px rhythm, sentence case instead of spaced caps,
+   weight from Roboto 500/700. Structure, selectors and behavior untouched —
+   this pass only restyles what earlier passes drew.
+   ========================================================================= */
+
+/* ---- Buttons: M3 filled / outlined / text ---- */
+.primary-button,
+.secondary-button,
+.ghost-button {
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  min-height: 44px;
+  padding: 0 20px;
+  transition: background-color 160ms ease, border-color 160ms ease,
+    color 160ms ease, box-shadow 160ms ease, transform 200ms var(--spring);
+}
+
+.primary-button {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+.primary-button:hover {
+  background: var(--cadmium-deep);
+  border-color: var(--cadmium-deep);
+  box-shadow: 0 1px 3px rgba(26, 28, 23, 0.3);
+}
+
+.secondary-button {
+  background: transparent;
+  border: 1.5px solid var(--outline);
+  color: var(--primary);
+}
+
+.secondary-button:hover {
+  background: rgba(69, 103, 67, 0.08);
+  border-color: var(--primary);
+}
+
+.ghost-button {
+  color: var(--primary);
+}
+
+.ghost-button:hover {
+  background: rgba(69, 103, 67, 0.08);
+}
+
+.primary-button:active,
+.secondary-button:active,
+.ghost-button:active {
+  transform: scale(0.97);
+}
+
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ---- Type voice: sentence case, weight instead of tracking ---- */
+label,
+.field-label,
+.eyebrow,
+.control-label,
+.issue-meta,
+.rc-meta-line,
+.recipe-card .card-meta span,
+.recipe-card .recipe-stats span,
+.creator-line,
+.header-metrics span,
+.metric-dose > span,
+.translate-label,
+.translate-picker label.translate-field,
+.brew-metrics span,
+.brew-scaler p,
+.brew-eyebrow,
+.brew-act,
+.brew-clock small,
+.brew-cue-now,
+.grind-stage-tag,
+.grind-scale-ends,
+.grind-readout-meta dt,
+.grind-grinder-name span,
+.grind-grinder-value span,
+.grind-grinder-out,
+.grind-taste-head,
+.grind-switch,
+.stats-card span,
+.stats-table th,
+.section-heading p,
+.taste-diagnosis,
+.menu .mhead {
+  font-family: var(--sans);
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+label,
+.field-label {
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.eyebrow {
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Headings carry the expressive weight. */
+.journal-title,
+.bloom-hero-title,
+.about-title,
+.grind-title,
+.builder-head h2,
+.recipe-header h2,
+.recipe-header.compact h2,
+.brew-title,
+.profile-band h1,
+.grind-readout-label {
+  font-family: var(--sans);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.section-heading h2 {
+  font-weight: 700;
+}
+
+/* ---- Masthead: surface + hairline, flower mark, M3 grinder menu button ---- */
+.site-masthead {
+  background: var(--oat);
+  border-bottom: 1px solid var(--rule);
+}
+
+@supports (backdrop-filter: blur(12px)) {
+  .site-masthead {
+    background: rgba(248, 250, 240, 0.86);
+    backdrop-filter: blur(12px) saturate(1.4);
+  }
+}
+
+.brand-lockup {
+  align-items: center;
+  display: inline-flex;
+  gap: 9px;
+}
+
+.brand-mark {
+  color: var(--primary);
+  display: block;
+  flex: 0 0 auto;
+}
+
+.brand-lockup strong {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* The grinder control, rebuilt as a Material menu button: 44px control on the
+   bar's shared rhythm, quiet label / weighted value, a real dropdown glyph
+   instead of a floating text caret, and hover/focus states. The invisible
+   native <select> stays on top for mobile ergonomics. */
+.my-grinder-picker {
+  border: 1.5px solid var(--outline);
+  border-radius: 999px;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 8px 0 16px;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.my-grinder-picker:hover {
+  background: rgba(69, 103, 67, 0.08);
+  border-color: var(--primary);
+}
+
+.my-grinder-picker:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.my-grinder-key {
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.my-grinder-picker .my-grinder-label {
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 600;
+  max-width: 150px;
+}
+
+.my-grinder-picker::after {
+  content: "";
+  height: 20px;
+  padding-right: 0;
+  margin-right: 2px;
+  width: 20px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2343483e'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E")
+    no-repeat center / 20px;
+}
+
+/* ---- Inputs: capsule fields on sage tokens ---- */
+input:focus,
+select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(69, 103, 67, 0.16);
+}
+
+/* ---- Library: tonal search, M3 filter chips, container cards ---- */
+.filter-bar {
+  border: 0;
+  border-radius: 20px;
+  background: var(--bone);
+  padding: 14px 16px;
+}
+
+.filter-bar input,
+.filter-bar select {
+  background: var(--card);
+  border-color: transparent;
+  height: 48px;
+  min-height: 48px;
+}
+
+.filter-bar input:focus {
+  border-color: var(--primary);
+}
+
+.filter-pill {
+  background: var(--card);
+  border: 1px solid var(--rule-2);
+  border-radius: 10px;
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-height: 36px;
+  transition: background-color 160ms ease, border-color 160ms ease,
+    color 160ms ease, transform 200ms var(--spring);
+}
+
+.filter-pill:active {
+  transform: scale(0.96);
+}
+
+.filter-pill:hover {
+  border-color: var(--outline);
+  color: var(--ink);
+}
+
+/* Selected chips are tonal, not inverted — the M3 filter-chip idiom. */
+.filter-pill.is-on {
+  background: var(--secondary-container);
+  border-color: transparent;
+  color: var(--on-secondary-container);
+}
+
+.filter-pill.is-on .pill-dot {
+  box-shadow: 0 0 0 1.5px var(--on-secondary-container);
+}
+
+.filter-clear {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.recipe-card {
+  background: var(--bone);
+  border: 1px solid transparent;
+  border-left: 1px solid transparent;
+  border-radius: 24px;
+  transition: background-color 160ms ease, box-shadow 160ms ease,
+    transform 200ms var(--spring);
+}
+
+.recipe-card:hover,
+.recipe-card:focus-visible {
+  background: var(--surface-container-high);
+  border-color: transparent;
+  border-left-color: transparent;
+  box-shadow: 0 6px 18px rgba(26, 28, 23, 0.08);
+  transform: translateY(-2px);
+}
+
+.rc-meta-line {
+  color: var(--ink-3);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.recipe-card h3 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.recipe-card .recipe-stats {
+  border-top: 1px solid var(--rule);
+}
+
+.recipe-card .recipe-stats span {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.recipe-card .recipe-stats div {
+  padding-right: 10px;
+}
+
+.recipe-card .recipe-stats strong {
+  font-weight: 700;
+}
+
+.recipe-card .rc-grind {
+  border-top: 1px solid var(--rule);
+}
+
+.card-share:hover {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+
+/* ---- Recipe page: metrics become tonal tiles ---- */
+.header-metrics {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  overflow: visible;
+}
+
+.header-metrics div {
+  background: var(--card);
+  border: 0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.header-metrics div:last-child,
+.header-metrics div:nth-child(2n) {
+  border: 0;
+}
+
+/* Tonal rhythm: primary / secondary / neutral, repeating. */
+.header-metrics > div:nth-child(3n + 1) {
+  background: var(--primary-container);
+}
+
+.header-metrics > div:nth-child(3n + 1) span,
+.header-metrics > div:nth-child(3n + 1) .dose-stepper button {
+  color: #365b34;
+}
+
+.header-metrics > div:nth-child(3n + 1) strong {
+  color: var(--on-primary-container);
+}
+
+.header-metrics > div:nth-child(3n + 2) {
+  background: var(--secondary-container);
+}
+
+.header-metrics > div:nth-child(3n + 2) span,
+.header-metrics > div:nth-child(3n + 2) .dose-stepper button {
+  color: #3c4a37;
+}
+
+.header-metrics > div:nth-child(3n + 2) strong {
+  color: var(--on-secondary-container);
+}
+
+.header-metrics span {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.header-metrics strong {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.metric-dose > span {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.dose-stepper button {
+  border-color: currentColor;
+  border-radius: 8px;
+  height: 26px;
+  opacity: 0.75;
+  width: 26px;
+}
+
+.dose-stepper strong {
+  font-weight: 800;
+}
+
+.grind-strip span {
+  background: var(--card);
+  border: 1px solid var(--rule-2);
+  border-radius: 10px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 6px 11px;
+}
+
+.back-button,
+.translate-toggle {
+  border: 1.5px solid var(--outline);
+  border-radius: 999px;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.back-button {
+  height: 40px;
+  width: 40px;
+}
+
+.back-button:hover,
+.translate-toggle:hover {
+  background: rgba(69, 103, 67, 0.08);
+}
+
+.translate-toggle {
+  min-height: 40px;
+  padding: 0 16px;
+}
+
+.translate-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.translate-value strong {
+  font-weight: 800;
+}
+
+.translate-picker select {
+  border-radius: 999px;
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.translate-caveats {
+  border-left: 3px solid var(--rule-2);
+}
+
+.grind-swatch,
+.grind-swatch-link {
+  border-radius: 10px;
+}
+
+.publish-banner {
+  background: var(--secondary-container);
+  border: 0;
+  border-radius: 18px;
+  color: var(--on-secondary-container);
+}
+
+.publish-banner span {
+  color: inherit;
+  opacity: 0.85;
+}
+
+.share-fab {
+  border-radius: 999px;
+}
+
+.customize-link {
+  color: var(--primary);
+}
+
+/* ---- Builder ---- */
+.notice {
+  background: var(--secondary-container);
+  border: 0;
+  border-radius: 14px;
+  color: var(--on-secondary-container);
+}
+
+.detail-add {
+  border: 1.5px dashed var(--outline);
+  color: var(--primary);
+  font-weight: 600;
+  min-height: 38px;
+}
+
+.detail-add:hover {
+  background: rgba(69, 103, 67, 0.08);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.step-row {
+  border-color: var(--rule);
+  border-radius: 18px;
+}
+
+.steps-empty {
+  border-color: var(--rule-2);
+  border-radius: 18px;
+}
+
+.step-time,
+.step-target {
+  border-radius: 999px;
+}
+
+.field-hint-link {
+  color: var(--primary);
+  font-family: var(--sans);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.ratio-hint {
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+/* ---- Grind guide ---- */
+.grind-stage {
+  background: var(--bone);
+  border: 0;
+  border-radius: 22px;
+  box-shadow: none;
+}
+
+.grind-stage-tag {
+  background: rgba(248, 250, 240, 0.92);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.grind-slider::-webkit-slider-thumb {
+  border-color: var(--primary);
+}
+
+.grind-slider::-moz-range-thumb {
+  border-color: var(--primary);
+}
+
+.grind-slider:focus {
+  box-shadow: 0 0 0 3px rgba(69, 103, 67, 0.22);
+}
+
+.grind-readout-microns {
+  font-weight: 800;
+}
+
+.grind-calibrate {
+  border: 0;
+  border-radius: 18px;
+}
+
+.grind-card-outline {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.grind-taste > div {
+  background: var(--bone);
+  border: 0;
+  border-radius: 16px;
+}
+
+.grind-block h2,
+.about-block h2,
+.stats-block h2 {
+  font-family: var(--sans);
+  font-weight: 700;
+}
+
+/* ---- Stats ---- */
+.stats-card {
+  background: var(--bone);
+  border: 0;
+  border-radius: 18px;
+}
+
+.stats-card strong {
+  font-weight: 800;
+}
+
+.style-chip.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+/* ---- Share sheet ---- */
+.share-sheet {
+  border-radius: 28px 28px 0 0;
+}
+
+@media (min-width: 640px) {
+  .share-sheet {
+    border-radius: 28px;
+  }
+}
+
+.sheet-preview {
+  border-radius: 20px;
+}
+
+.style-opt {
+  border-radius: 14px;
+}
+
+.style-opt.on {
+  border-color: var(--primary);
+}
+
+.style-opt.on small {
+  color: var(--primary);
+}
+
+.format-opt.on {
+  background: var(--primary);
+}
+
+.style-thumb.t-rail::before {
+  background: var(--primary);
+}
+
+/* ---- Onboarding ---- */
+.ob-card {
+  border-radius: 28px;
+}
+
+.ob-icon {
+  background: var(--secondary-container);
+}
+
+/* ---- Brew mode ---- */
+.brew-metrics {
+  background: transparent;
+  border: 0;
+  gap: 8px;
+}
+
+.brew-metrics div {
+  background: var(--bone);
+  border: 0;
+  border-radius: 14px;
+}
+
+.brew-metrics div:first-child {
+  background: var(--primary-container);
+}
+
+.brew-metrics div:first-child span {
+  color: #365b34;
+}
+
+.brew-metrics div:first-child strong {
+  color: var(--on-primary-container);
+}
+
+.brew-metrics span {
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+
+.brew-metrics strong {
+  font-weight: 800;
+}
+
+.brew-scaler,
+.brew-steps-list,
+.brew-next,
+.brew-grind {
+  border-color: var(--rule);
+  border-radius: 18px;
+}
+
+.brew-scaler-row > button {
+  border-radius: 999px;
+}
+
+.brew-clock {
+  font-weight: 800;
+}
+
+.brew-eyebrow,
+.brew-act {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.brew-act {
+  color: var(--primary);
+}
+
+.brew-target {
+  font-weight: 800;
+}
+
+.bdot.done {
+  background: #a6c79f;
+}
+
+.bdot.now {
+  background: var(--primary);
+}
+
+.brew-done-icon {
+  background: var(--secondary-container);
+  color: var(--primary);
+}
+
+.brew-cue {
+  background: var(--primary);
+}
+
+.brew-cue-big {
+  font-weight: 800;
+}
+
+.brew-exit {
+  color: #8f4c38;
+}
+
+.step-remove:hover {
+  background: rgba(143, 76, 56, 0.12);
+  color: #8f4c38;
+}
+
+/* Timeline step dots on the vertical mobile timeline. */
+.mobile-step::before {
+  background: var(--primary);
+  border-color: var(--oat);
+  box-shadow: 0 0 0 3px var(--secondary-container);
+}
+
+.mobile-step:last-child::before {
+  background: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-container);
+}
+
+.mobile-timeline ol::before {
+  background: var(--rule-2);
+}
+
+/* Metric tiles keep their tonal treatment on small screens — the earlier
+   compact pass reintroduces borders below 680px, so zero them again here. */
+@media (max-width: 680px) {
+  .header-metrics {
+    gap: 8px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .header-metrics div,
+  .header-metrics div:nth-child(2n),
+  .header-metrics div:last-child {
+    border: 0;
+    border-radius: 14px;
+    padding: 11px 10px;
+  }
+
+  .my-grinder-picker {
+    min-height: 40px;
+    padding-left: 13px;
+  }
+
+  .site-nav .primary-button {
+    font-size: 0.78rem;
+    padding: 0 13px;
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primary-button,
+  .secondary-button,
+  .ghost-button,
+  .filter-pill,
+  .recipe-card {
+    transition-duration: 0.01ms;
+  }
 }

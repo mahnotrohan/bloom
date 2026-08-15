@@ -22,11 +22,11 @@ import {
 import { GrindSwatch, spreadFor } from "../../lib/grind-canvas";
 import { useMyGrinder } from "../../lib/use-my-grinder";
 
-const ink = "#2c2c2a";
-const muted = "#888780";
-const soft = "#5f5e5a";
-const rule = "#d3d1c7";
-const accentBg = "#f0ece3";
+const ink = "#1a1c17";
+const muted = "#6b7163";
+const soft = "#43483e";
+const rule = "#c9cdbf";
+const accentBg = "#d5e8ce";
 
 export default function RecipeTools({
   recipe,
@@ -73,7 +73,7 @@ export default function RecipeTools({
       <section
         style={{
           border: `1px solid ${rule}`,
-          borderRadius: 10,
+          borderRadius: 16,
           padding: "14px 16px",
         }}
       >

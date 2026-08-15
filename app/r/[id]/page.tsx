@@ -98,11 +98,11 @@ function structuredData(recipe: PublicRecipe) {
   };
 }
 
-const paper = "#f7f5f0";
-const ink = "#2c2c2a";
-const muted = "#888780";
-const soft = "#5f5e5a";
-const rule = "#d3d1c7";
+const paper = "#f8faf0";
+const ink = "#1a1c17";
+const muted = "#6b7163";
+const soft = "#43483e";
+const rule = "#c9cdbf";
 
 export default async function RecipePage({ params }: Params) {
   const { id } = await params;
@@ -175,7 +175,7 @@ export default async function RecipePage({ params }: Params) {
           gap: 1,
           background: rule,
           border: `1px solid ${rule}`,
-          borderRadius: 10,
+          borderRadius: 16,
           overflow: "hidden",
           marginBottom: 24,
         }}
@@ -270,10 +270,10 @@ export default async function RecipePage({ params }: Params) {
           href={`/#/recipe/${recipe.id}`}
           style={{
             display: "inline-block",
-            background: ink,
-            color: paper,
-            padding: "11px 20px",
-            borderRadius: 8,
+            background: "#456743",
+            color: "#ffffff",
+            padding: "12px 22px",
+            borderRadius: 999,
             textDecoration: "none",
             fontSize: 15,
           }}
