@@ -5306,7 +5306,9 @@ select:focus {
 @media (max-width: 680px) {
   .header-metrics {
     gap: 8px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    /* Two columns on phones: three-across cannot hold the dose stepper, and
+       with two columns the 3n color cycle mixes diagonally by itself. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .header-metrics > div,
@@ -5676,5 +5678,125 @@ select:focus {
 @media (max-width: 640px) {
   .translate-actions {
     align-self: stretch;
+  }
+}
+
+
+/* ===========================================================================
+   Mobile polish pass (Aug 2026) — from live-device review.
+   ========================================================================= */
+
+/* iOS Safari paints its native control chrome on <button> unless appearance is
+   reset — desktop browsers never showed it, the phone did (tall oval steppers).
+   Every button in the app is custom-styled, so the global reset is safe. */
+button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Stepper buttons: explicit geometry so no platform default can stretch them. */
+.dose-stepper button,
+.brew-scaler-row > button {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+}
+
+.dose-stepper button {
+  border-radius: 9px;
+  height: 28px;
+  width: 28px;
+}
+
+/* Metric tiles: center content vertically so short tiles (Ratio, Time) stop
+   looking top-heavy next to the taller Dose/stepper tile. */
+.header-metrics > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Grind panel actions: "Check with your grounds" is the action, tonal;
+   "Convert to my grinder" is a setting, outlined. */
+.translate-check {
+  background: var(--secondary-container);
+  border-color: transparent;
+  color: var(--on-secondary-container);
+  font-weight: 700;
+}
+
+.translate-check:hover {
+  background: var(--primary-container);
+}
+
+@media (max-width: 640px) {
+  /* Grind actions become an equal 50/50 row instead of two stacked,
+     differently-sized lozenges. */
+  .translate-actions {
+    flex-direction: row;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .translate-actions .translate-toggle {
+    flex: 1 1 0;
+    min-height: 44px;
+    padding: 0 10px;
+  }
+
+  /* The share bar becomes a compact extended FAB, bottom-right, instead of a
+     near-full-width bar squatting on the timeline — and the page gets tail
+     room so the last step can always scroll clear of it. */
+  .share-fab {
+    bottom: 18px;
+    margin-left: auto;
+    margin-right: 0;
+    max-width: none;
+    padding: 0 20px;
+    width: auto;
+  }
+
+  .recipe-page {
+    padding-bottom: 88px;
+  }
+}
+
+/* Follow-ups from 390px verification. */
+@media (max-width: 680px) {
+  /* The stepper must fit a 3-col tile: drop the desktop value width and let
+     the row center itself instead of spilling into the next tile. */
+  .header-metrics .dose-stepper {
+    gap: 3px;
+    justify-content: center;
+  }
+
+  .dose-stepper button {
+    height: 24px;
+    width: 24px;
+  }
+
+  .dose-stepper strong {
+    font-size: 1.05rem;
+    min-width: 0;
+    padding: 0 3px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Keep the bar on one line: the flower carries the brand, the wordmark
+     yields its width to the grinder pill and the CTA. */
+  .brand-lockup strong {
+    display: none;
+  }
+
+  .masthead-inner {
+    gap: 10px;
+  }
+
+  .my-grinder-picker {
+    padding-left: 11px;
   }
 }

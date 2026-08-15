@@ -3731,7 +3731,7 @@ function GrindTranslation({
           {/* The physical benchmark: real grounds on the glass, target at 1:1. */}
           {onCheck && microns ? (
             <button
-              className="translate-toggle"
+              className="translate-toggle translate-check"
               onClick={() =>
                 onCheck({
                   microns: microns.mid,
