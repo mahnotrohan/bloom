@@ -4871,16 +4871,25 @@ select:focus {
   overflow: visible;
 }
 
-.header-metrics div {
+.header-metrics > div {
   background: var(--card);
   border: 0;
   border-radius: 18px;
   padding: 14px;
 }
 
-.header-metrics div:last-child,
-.header-metrics div:nth-child(2n) {
+.header-metrics > div:last-child,
+.header-metrics > div:nth-child(2n) {
   border: 0;
+}
+
+/* .header-metrics pads and now tints DESCENDANT divs, not just children
+   (see CLAUDE.md — this exact trap dropped the Dose value 13px once, and
+   painted the dose stepper white once). Neutralize anything nested. */
+.header-metrics > div div {
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
 }
 
 /* Tonal rhythm: primary / secondary / neutral, repeating. */
@@ -5300,12 +5309,18 @@ select:focus {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .header-metrics div,
-  .header-metrics div:nth-child(2n),
-  .header-metrics div:last-child {
+  .header-metrics > div,
+  .header-metrics > div:nth-child(2n),
+  .header-metrics > div:last-child {
     border: 0;
     border-radius: 14px;
     padding: 11px 10px;
+  }
+
+  .header-metrics > div div {
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
   }
 
   .my-grinder-picker {
@@ -5327,5 +5342,82 @@ select:focus {
   .filter-pill,
   .recipe-card {
     transition-duration: 0.01ms;
+  }
+}
+
+/* ===========================================================================
+   Share visibility + "Surprise me" (Aug 2026 follow-up)
+   Share was a 30px glyph on cards and a scroll-away button on the recipe
+   page; it is the product's growth loop, so it gets real presence. Surprise
+   me draws from the filtered set, so it composes with the filter bar.
+   ========================================================================= */
+
+/* Card share: a visible tonal icon button instead of a bare glyph. */
+.card-share {
+  background: var(--secondary-container);
+  border-radius: 999px;
+  color: var(--on-secondary-container);
+  font-size: 0.95rem;
+  height: 34px;
+  transition: background-color 160ms ease, color 160ms ease,
+    transform 200ms var(--spring);
+  width: 34px;
+}
+
+.card-share:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.card-share:active {
+  transform: scale(0.94);
+}
+
+/* The recipe page's sticky share button, revived as an M3 tonal button so the
+   filled Brew action keeps the top of the hierarchy. */
+.share-fab {
+  align-items: center;
+  background: var(--secondary-container);
+  border: 0;
+  border-radius: 999px;
+  bottom: 16px;
+  box-shadow: 0 6px 20px rgba(26, 28, 23, 0.16);
+  color: var(--on-secondary-container);
+  display: flex;
+  font-size: 0.92rem;
+  font-weight: 600;
+  justify-content: center;
+  margin: 26px auto 0;
+  max-width: 340px;
+  min-height: 52px;
+  position: sticky;
+  transition: background-color 160ms ease, transform 200ms var(--spring);
+  width: 100%;
+  z-index: 15;
+}
+
+.share-fab:hover {
+  background: var(--primary-container);
+}
+
+.share-fab:active {
+  transform: scale(0.97);
+}
+
+.share-fab:disabled {
+  opacity: 0.7;
+}
+
+/* Hero: Write recipe + Surprise me as a pair. */
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .hero-actions .primary-button,
+  .hero-actions .secondary-button {
+    flex: 1 1 140px;
   }
 }

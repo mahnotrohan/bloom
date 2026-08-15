@@ -10,7 +10,11 @@ export type UsageEventName =
   | "recipe_view"
   | "share_open"
   | "share_sent"
-  | "recipe_publish";
+  | "recipe_publish"
+  // "Surprise me" — a random pick from the (filtered) library. A new event
+  // VALUE only; the positional column layout is untouched. The recipe it lands
+  // on still fires its own recipe_view via the route change.
+  | "random_pick";
 
 // Fire-and-forget usage event. Only the columns that mean something for the
 // event are filled; the rest keep their zero/empty defaults so the positional

@@ -1118,6 +1118,18 @@ export default function Home() {
     go("builder");
   }
 
+  /**
+   * "Surprise me" — open a random recipe. Deliberately drawn from the
+   * *filtered* set, so active filters compose with it ("a random V60, no
+   * milk"). An untouched filter bar means the whole library is the pool.
+   */
+  function surpriseMe() {
+    if (!filteredRecipes.length) return;
+    const pick = filteredRecipes[Math.floor(Math.random() * filteredRecipes.length)];
+    trackUsage("random_pick", { recipeId: pick.id, brewer: pick.brewer });
+    go("recipe", pick.id);
+  }
+
   function publishRecipe() {
     const recipe = fromDraft(draft, recipes);
     if (draft.creator.trim()) {
@@ -1188,6 +1200,7 @@ export default function Home() {
           onOpen={(id) => go("recipe", id)}
           onCreate={startNewRecipe}
           onShare={(id) => setShareId(id)}
+          onSurprise={surpriseMe}
         />
       )}
       {shareId ? (
@@ -1576,6 +1589,7 @@ function Library({
   onOpen,
   onCreate,
   onShare,
+  onSurprise,
 }: {
   recipes: Recipe[];
   allRecipes: Recipe[];
@@ -1589,6 +1603,7 @@ function Library({
   onOpen: (id: string) => void;
   onCreate: () => void;
   onShare: (id: string) => void;
+  onSurprise: () => void;
 }) {
   // Titles that more than one recipe shares — "World Brewers Cup — 2016" and
   // friends. Thirty cards with the same headline are unscannable, so those lead
@@ -1639,9 +1654,19 @@ function Library({
             Any recipe, on your gear.
           </h1>
         </div>
-        <button className="primary-button" onClick={onCreate}>
-          Write recipe
-        </button>
+        <div className="hero-actions">
+          <button className="primary-button" onClick={onCreate}>
+            Write recipe
+          </button>
+          {/* Random pick from whatever the filter bar currently shows. */}
+          <button
+            className="secondary-button"
+            onClick={onSurprise}
+            disabled={recipes.length === 0}
+          >
+            Surprise me
+          </button>
+        </div>
       </section>
 
       <section id="library" className="mx-auto max-w-7xl px-5 pb-12 sm:px-8">
@@ -1976,11 +2001,9 @@ function RecipeCard({
           )}
         </div>
       </div>
+      {/* Card view leads with the three numbers you act on at the counter —
+          dose, water, time. Ratio is derivable and lives on the recipe page. */}
       <div className="recipe-stats">
-        <div>
-          <span>Ratio</span>
-          <strong>{recipe.ratio ? ratioLabel(recipe.ratio) : "—"}</strong>
-        </div>
         <div>
           <span>Dose</span>
           <strong>{recipe.dose ? `${recipe.dose}g` : "—"}</strong>
@@ -2631,6 +2654,12 @@ function RecipePage({
         <GrindTranslation recipe={recipe} />
         <Timeline recipe={scaled} />
       </div>
+      {/* Thumb-reachable share, restored — the top-row Share scrolls away with
+          the header, and sharing is the one action worth keeping in reach.
+          Tonal (secondary-container), so Brew stays the page's filled action. */}
+      <button className="share-fab" disabled={isSharing} onClick={quickShare}>
+        {isSharing ? "Sharing…" : "↗ Share this recipe"}
+      </button>
       <button className="customize-link" onClick={onShare}>
         Customize with a photo →
       </button>
