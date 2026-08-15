@@ -20,18 +20,29 @@ import {
   type BrewEvent,
   type BrewEventName,
 } from "./analytics";
-import GrindGuide from "./grind-guide";
+import GrindGuide, { CalibrationPanel } from "./grind-guide";
 import {
   grinderNames,
   translateGrind,
   micronsForRecipe,
   bandFor,
+  bloomLabelFor,
   tasteAdvice,
   tasteVerdicts,
   untranslatableReason,
+  benchmarkAdvice,
+  MIN_MICRONS,
+  MAX_MICRONS,
   type Verdict,
+  type BenchmarkVerdict,
 } from "./lib/grind";
-import { GrindSwatch, spreadFor } from "./lib/grind-canvas";
+import {
+  GrindCanvas,
+  GrindSwatch,
+  calibrationKey,
+  readPxPerMm,
+  spreadFor,
+} from "./lib/grind-canvas";
 import { useMyGrinder } from "./lib/use-my-grinder";
 
 type Brewer =
@@ -49,6 +60,15 @@ type Brewer =
 // Filters are multi-select. An empty selection means "no constraint", which is
 // what the removed All / Any buttons used to express.
 type MilkOption = "black" | "milk";
+
+/** What the Grind check overlay benchmarks against, and where it came from. */
+type GrindCheckTarget = {
+  microns: number;
+  spread?: number;
+  /** One quiet context line under the title — recipe, clicks, or feel. */
+  context: string;
+  recipeId?: string;
+};
 
 type Grind = "Fine" | "Medium-Fine" | "Medium" | "Medium-Coarse" | "Coarse";
 type Agitation = "Gentle" | "Moderate" | "Vigorous";
@@ -978,6 +998,7 @@ export default function Home() {
   const [shareId, setShareId] = useState("");
   const [brewId, setBrewId] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [grindCheck, setGrindCheck] = useState<GrindCheckTarget | null>(null);
 
   /**
    * The dose the reader is actually brewing, owned here rather than inside the
@@ -1130,6 +1151,14 @@ export default function Home() {
     go("recipe", pick.id);
   }
 
+  function openGrindCheck(target: GrindCheckTarget) {
+    trackUsage("benchmark_open", {
+      recipeId: target.recipeId ?? "",
+      detail: String(Math.round(target.microns)),
+    });
+    setGrindCheck(target);
+  }
+
   function publishRecipe() {
     const recipe = fromDraft(draft, recipes);
     if (draft.creator.trim()) {
@@ -1160,6 +1189,7 @@ export default function Home() {
           initialMicrons={Number(activeId) || undefined}
           onCreate={startNewRecipe}
           onBrowse={() => go("home")}
+          onCheck={(m) => openGrindCheck({ microns: m, context: `Like ${bandFor(m).like}` })}
         />
       ) : view === "builder" ? (
         <Builder
@@ -1178,6 +1208,7 @@ export default function Home() {
           onBack={() => go("home")}
           sharePrompt={justPublishedId === activeRecipe.id}
           onDismissPrompt={() => setJustPublishedId("")}
+          onGrindCheck={openGrindCheck}
         />
       ) : view === "creator" ? (
         <CreatorProfile
@@ -1219,7 +1250,11 @@ export default function Home() {
             setBrewId("");
             setShareId(brewId);
           }}
+          onGrindCheck={openGrindCheck}
         />
+      ) : null}
+      {grindCheck ? (
+        <GrindCheck target={grindCheck} onExit={() => setGrindCheck(null)} />
       ) : null}
       {showOnboarding ? <OnboardingOverlay onDone={dismissOnboarding} /> : null}
     </main>
@@ -2557,6 +2592,7 @@ function RecipePage({
   onBack,
   sharePrompt = false,
   onDismissPrompt,
+  onGrindCheck,
 }: {
   recipe: Recipe;
   /** Owned by the app so the brew screen sees the same number. */
@@ -2567,6 +2603,7 @@ function RecipePage({
   onBack: () => void;
   sharePrompt?: boolean;
   onDismissPrompt?: () => void;
+  onGrindCheck: (target: GrindCheckTarget) => void;
 }) {
   const [isSharing, setIsSharing] = useState(false);
   const quickBlobRef = useRef<Blob | null>(null);
@@ -2651,7 +2688,7 @@ function RecipePage({
             onChange: (next) => onDose(next === recipe.dose ? null : next),
           }}
         />
-        <GrindTranslation recipe={recipe} />
+        <GrindTranslation recipe={recipe} onCheck={onGrindCheck} />
         <Timeline recipe={scaled} />
       </div>
       {/* Thumb-reachable share, restored — the top-row Share scrolls away with
@@ -2842,6 +2879,7 @@ function BrewMode({
   onDose,
   onExit,
   onShare,
+  onGrindCheck,
 }: {
   recipe: Recipe;
   /**
@@ -2852,6 +2890,7 @@ function BrewMode({
   onDose: (next: number | null) => void;
   onExit: () => void;
   onShare: () => void;
+  onGrindCheck?: (target: GrindCheckTarget) => void;
 }) {
   const [phase, setPhase] = useState<"ready" | "running" | "done">("ready");
   const setDose = (next: number) => onDose(next === recipe.dose ? null : next);
@@ -3073,7 +3112,7 @@ function BrewMode({
           </div>
           {/* The ready screen is the one moment you are actually at the grinder,
               so this is where the converted number matters most. */}
-          <BrewGrind recipe={recipe} />
+          <BrewGrind recipe={recipe} onCheck={onGrindCheck} />
           {recipe.dose > 0 ? (
             <div className="brew-scaler">
               <p>Brewing more or less? Targets scale.</p>
@@ -3230,7 +3269,13 @@ function BrewMode({
    ------------------------------------------------------------------------- */
 
 /** Grind line on the brew-ready screen, in the reader's units where possible. */
-function BrewGrind({ recipe }: { recipe: Recipe }) {
+function BrewGrind({
+  recipe,
+  onCheck,
+}: {
+  recipe: Recipe;
+  onCheck?: (target: GrindCheckTarget) => void;
+}) {
   const [myGrinder] = useMyGrinder();
   const source = {
     brewer: recipe.brewer,
@@ -3266,6 +3311,25 @@ function BrewGrind({ recipe }: { recipe: Recipe }) {
           {microns ? ` · like ${bandFor(microns.mid).like}` : ""}
         </p>
       </div>
+      {/* You are standing at the grinder right now — the one moment a 1:1
+          check against real grounds actually changes what you do next. */}
+      {onCheck && microns ? (
+        <button
+          className="brew-grind-check"
+          onClick={() =>
+            onCheck({
+              microns: microns.mid,
+              spread: spreadFor(translation?.confidence ?? microns.confidence),
+              context: translation?.ok
+                ? `${translation.display} on your ${translation.grinderName}`
+                : published || `Like ${bandFor(microns.mid).like}`,
+              recipeId: recipe.id,
+            })
+          }
+        >
+          Check
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -3300,6 +3364,208 @@ function TasteLoop() {
         </>
       )}
     </section>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   Grind check — the physical benchmark.
+
+   The digital version of a printed grind chart (à la Aramse's, which prints
+   photos true-to-life against a 1-inch scale line): the target bed is drawn at
+   a calibrated 1:1, and the reader sprinkles a pinch of real grounds on the
+   glass beside it. The finer/coarser bracket exists because the useful reading
+   is a direction, not a yes/no — and the verdict chips turn that direction
+   into a move in the reader's own clicks, one variable at a time.
+
+   Below ~400 µm a particle is a couple of pixels even at true scale. A printed
+   chart has the same limit; the overlay says so instead of pretending.
+   ------------------------------------------------------------------------- */
+
+const BRACKET_STEP_MICRONS = 150;
+
+function GrindCheck({
+  target,
+  onExit,
+}: {
+  target: GrindCheckTarget;
+  onExit: () => void;
+}) {
+  const [myGrinder] = useMyGrinder();
+  const [pxPerMm, setPxPerMm] = useState(readPxPerMm);
+  const [calibrating, setCalibrating] = useState(false);
+  const [verdict, setVerdict] = useState<BenchmarkVerdict | null>(null);
+  // Whether a stored calibration existed when the overlay opened.
+  const [wasCalibrated] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return Boolean(window.localStorage.getItem(calibrationKey));
+    } catch {
+      return false;
+    }
+  });
+
+  const microns = Math.round(target.microns);
+  // A bracket cell only renders when a full honest step exists on that side.
+  // Clamping instead would show a COARSER bed under a "too fine" label the
+  // moment the target sits near the scale's floor (e.g. espresso range).
+  const finer = microns - BRACKET_STEP_MICRONS;
+  const coarser = microns + BRACKET_STEP_MICRONS;
+  const showFiner = finer >= MIN_MICRONS;
+  const showCoarser = coarser <= MAX_MICRONS;
+  const advice = verdict ? benchmarkAdvice(verdict, myGrinder) : null;
+
+  function updateCalibration(value: number) {
+    setPxPerMm(value);
+    try {
+      window.localStorage.setItem(calibrationKey, String(value));
+    } catch {
+      // ignore
+    }
+  }
+
+  function giveVerdict(v: BenchmarkVerdict) {
+    setVerdict(v);
+    trackUsage("benchmark_verdict", { recipeId: target.recipeId ?? "", detail: v });
+  }
+
+  // Same wake-lock pattern as BrewMode: hands are full of coffee, the screen
+  // must not dim mid-comparison.
+  useEffect(() => {
+    type WakeLockSentinel = { release: () => Promise<void> };
+    let lock: WakeLockSentinel | null = null;
+    const nav = navigator as Navigator & {
+      wakeLock?: { request: (type: "screen") => Promise<WakeLockSentinel> };
+    };
+    const request = () => {
+      nav.wakeLock
+        ?.request("screen")
+        .then((l) => {
+          lock = l;
+        })
+        .catch(() => {});
+    };
+    request();
+    const onVis = () => {
+      if (document.visibilityState === "visible") request();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      lock?.release().catch(() => {});
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onExit();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onExit]);
+
+  return (
+    <div className="gcheck" role="dialog" aria-label="Grind check — compare your grounds at true size">
+      <div className="gcheck-inner">
+        <div className="brew-top">
+          <button className="ghost-button" onClick={onExit}>✕ Close</button>
+          <span className="brew-eyebrow">Grind check · true size</span>
+          <span className="brew-top-spacer" />
+        </div>
+
+        <h2 className="gcheck-title">
+          {bloomLabelFor(microns)} · ≈ {microns} µm
+        </h2>
+        {target.context ? <p className="gcheck-sub">{target.context}</p> : null}
+
+        <div className="gcheck-cal">
+          <span>
+            {wasCalibrated
+              ? "Screen calibrated to your card ✓"
+              : "For true size, calibrate once against any bank card"}
+          </span>
+          <button className="gcheck-cal-btn" onClick={() => setCalibrating((v) => !v)}>
+            {calibrating ? "Hide" : wasCalibrated ? "Redo" : "Calibrate"}
+          </button>
+        </div>
+        {calibrating ? (
+          <CalibrationPanel
+            pxPerMm={pxPerMm}
+            onChange={updateCalibration}
+            onClose={() => setCalibrating(false)}
+          />
+        ) : null}
+
+        <div className="gcheck-stage">
+          <div className="gcheck-pane gcheck-target">
+            <span className="gcheck-tag">Target · 1:1</span>
+            <GrindCanvas
+              microns={microns}
+              pxPerMm={pxPerMm}
+              magnification={1}
+              spread={target.spread}
+            />
+          </div>
+          <div className="gcheck-pane gcheck-tray">
+            <p>
+              Sprinkle a <strong>pinch of your grounds</strong> here, spread them
+              thin, and compare
+            </p>
+          </div>
+        </div>
+
+        <p className="gcheck-axis">too fine ← → too coarse</p>
+        <div className="gcheck-bracket">
+          {showFiner ? (
+            <div className="gcheck-cell">
+              <GrindCanvas microns={finer} pxPerMm={pxPerMm} magnification={1} spread={target.spread} />
+              <span>≈ {finer} µm</span>
+            </div>
+          ) : null}
+          <div className="gcheck-cell is-target">
+            <GrindCanvas microns={microns} pxPerMm={pxPerMm} magnification={1} spread={target.spread} />
+            <span>target</span>
+          </div>
+          {showCoarser ? (
+            <div className="gcheck-cell">
+              <GrindCanvas microns={coarser} pxPerMm={pxPerMm} magnification={1} spread={target.spread} />
+              <span>≈ {coarser} µm</span>
+            </div>
+          ) : null}
+        </div>
+
+        {microns < 400 ? (
+          <p className="gcheck-note">
+            Under 400 µm a single particle is a couple of pixels even at true
+            size — a printed chart hits the same wall. Lean on the finer/coarser
+            comparison rather than individual specks.
+          </p>
+        ) : null}
+
+        <div className="gcheck-verdict" role="group" aria-label="How do your grounds compare?">
+          <button aria-pressed={verdict === "finer"} onClick={() => giveVerdict("finer")}>
+            Mine&rsquo;s finer
+          </button>
+          <button aria-pressed={verdict === "match"} onClick={() => giveVerdict("match")}>
+            Looks right
+          </button>
+          <button aria-pressed={verdict === "coarser"} onClick={() => giveVerdict("coarser")}>
+            Mine&rsquo;s coarser
+          </button>
+        </div>
+
+        {advice ? (
+          <div className="gcheck-advice" aria-live="polite">
+            <strong>{advice.headline}</strong>
+            <p>{advice.detail}</p>
+          </div>
+        ) : (
+          <p className="gcheck-note">
+            Screen stays awake · brightness up helps · dry grounds wipe straight
+            off the glass
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -3380,7 +3646,13 @@ function RecipeHeader({
    so setting it once sets it everywhere. No account, no sync.
    ------------------------------------------------------------------------- */
 
-function GrindTranslation({ recipe }: { recipe: Recipe }) {
+function GrindTranslation({
+  recipe,
+  onCheck,
+}: {
+  recipe: Recipe;
+  onCheck?: (target: GrindCheckTarget) => void;
+}) {
   const [myGrinder, choose] = useMyGrinder();
   const [open, setOpen] = useState(false);
 
@@ -3448,13 +3720,33 @@ function GrindTranslation({ recipe }: { recipe: Recipe }) {
             ) : null}
           </div>
         </div>
-        <button
-          className="translate-toggle"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-        >
-          {myGrinder ? "Change grinder" : "Convert to my grinder"}
-        </button>
+        <div className="translate-actions">
+          <button
+            className="translate-toggle"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+          >
+            {myGrinder ? "Change grinder" : "Convert to my grinder"}
+          </button>
+          {/* The physical benchmark: real grounds on the glass, target at 1:1. */}
+          {onCheck && microns ? (
+            <button
+              className="translate-toggle"
+              onClick={() =>
+                onCheck({
+                  microns: microns.mid,
+                  spread: spreadFor(translation?.confidence ?? microns.confidence),
+                  context: translation?.ok
+                    ? `${recipeTitle(recipe)} — ${translation.display} on your ${translation.grinderName}`
+                    : `${recipeTitle(recipe)}${published ? ` — ${published}` : ""}`,
+                  recipeId: recipe.id,
+                })
+              }
+            >
+              Check with your grounds
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {open ? (

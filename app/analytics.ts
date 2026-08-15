@@ -14,7 +14,11 @@ export type UsageEventName =
   // "Surprise me" — a random pick from the (filtered) library. A new event
   // VALUE only; the positional column layout is untouched. The recipe it lands
   // on still fires its own recipe_view via the route change.
-  | "random_pick";
+  | "random_pick"
+  // Grind check: opening the 1:1 benchmark overlay, and the visual verdict the
+  // reader gives ("finer" / "match" / "coarser" travels in the detail column).
+  | "benchmark_open"
+  | "benchmark_verdict";
 
 // Fire-and-forget usage event. Only the columns that mean something for the
 // event are filled; the rest keep their zero/empty defaults so the positional

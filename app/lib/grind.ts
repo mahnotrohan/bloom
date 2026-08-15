@@ -619,3 +619,57 @@ export function tasteAdvice(
       };
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Grind check (visual benchmark)
+
+   The sight-based sibling of the taste loop: the reader compares real grounds
+   against the calibrated 1:1 bed and reports which way they're off. A size
+   difference you can actually SEE at true scale is roughly a 100 µm move —
+   twice the taste loop's 50 µm nudge — expressed in the reader's own clicks.
+   ------------------------------------------------------------------------- */
+
+export type BenchmarkVerdict = "finer" | "match" | "coarser";
+
+export type BenchmarkAdvice = {
+  verdict: BenchmarkVerdict;
+  headline: string;
+  detail: string;
+};
+
+export function benchmarkAdvice(
+  verdict: BenchmarkVerdict,
+  myGrinderName: string | null | undefined,
+): BenchmarkAdvice {
+  const target = findGrinder(myGrinderName);
+  const moves =
+    target && target.kind === "clicks" ? Math.max(1, Math.round(100 / target.perClick)) : 2;
+  const unit = target && target.kind === "steps" ? "step" : "click";
+  const plural = moves === 1 ? "" : "s";
+  const grinder = target ? ` on your ${target.name}` : "";
+
+  switch (verdict) {
+    case "finer":
+      return {
+        verdict,
+        headline: `Go ${moves} ${unit}${plural} coarser${grinder}`,
+        detail:
+          "Your grounds are sitting smaller than the target bed. Open the grinder up, grind a fresh pinch and check once more — matching by eye gets you within a click or two, and taste does the rest.",
+      };
+    case "coarser":
+      return {
+        verdict,
+        headline: `Go ${moves} ${unit}${plural} finer${grinder}`,
+        detail:
+          "Your grounds are sitting larger than the target bed. Tighten the grinder, grind a fresh pinch and check once more — matching by eye gets you within a click or two, and taste does the rest.",
+      };
+    case "match":
+    default:
+      return {
+        verdict: "match",
+        headline: "That's the grind",
+        detail:
+          "Brew it. If the cup disagrees with your eyes, the taste loop on the brew-done screen moves you one variable at a time.",
+      };
+  }
+}

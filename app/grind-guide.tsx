@@ -42,7 +42,7 @@ import {
    bank card (ID-1, 85.60 mm wide) once, and we remember it.
    ------------------------------------------------------------------------- */
 
-function CalibrationPanel({
+export function CalibrationPanel({
   pxPerMm,
   onChange,
   onClose,
@@ -86,10 +86,13 @@ export default function GrindGuide({
   initialMicrons,
   onCreate,
   onBrowse,
+  onCheck,
 }: {
   initialMicrons?: number;
   onCreate: () => void;
   onBrowse: () => void;
+  /** Opens the full-screen Grind check overlay at the slider's micron value. */
+  onCheck?: (microns: number) => void;
 }) {
   const [microns, setMicrons] = useState(() => {
     const start = initialMicrons ?? 750;
@@ -233,6 +236,11 @@ export default function GrindGuide({
         <button className="ghost-button" onClick={copyLink}>
           {copied ? "Link copied" : "Copy link to this grind"}
         </button>
+        {onCheck ? (
+          <button className="ghost-button" onClick={() => onCheck(microns)}>
+            Check against your grounds
+          </button>
+        ) : null}
       </div>
 
       {actualSize && calibrating ? (

@@ -193,7 +193,9 @@ Two subtleties that are easy to break:
   point — published figures range from 30 to 80 µm/click — and it self-flags.
   Baratza Encore and Fellow Ode are `unverified` placeholders.
 
-**Six surfaces read the grinder, and they must stay in sync:** the masthead
+**Seven surfaces read the grinder, and they must stay in sync:** (the seventh
+is `GrindCheck`, the 1:1 benchmark overlay — its verdict chips answer in the
+reader's clicks via `benchmarkAdvice` in `grind.ts`) the masthead
 picker (`MyGrinderPicker`), library cards (`.rc-grind`), the recipe page panel
 (`GrindTranslation`), the brew-ready screen (`BrewGrind`), the taste loop, and
 the shared `/r/<id>` page (`app/r/[id]/tools.tsx`). The first version only wired
